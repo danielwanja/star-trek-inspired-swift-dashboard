@@ -1,0 +1,239 @@
+import Darwin
+import Foundation
+
+struct SystemTelemetry: Equatable {
+    var cpuUsage: Double
+    var memoryUsed: Double
+    var memoryTotal: Double
+    var memoryPressure: Double
+    var networkInRate: Double
+    var networkOutRate: Double
+    var diskUsed: Double
+    var diskTotal: Double
+    var temperature: Double
+    var processThreads: Int
+    var processMemory: Double
+
+    static let placeholder = SystemTelemetry(
+        cpuUsage: 0.42,
+        memoryUsed: 8_000_000_000,
+        memoryTotal: 16_000_000_000,
+        memoryPressure: 0.50,
+        networkInRate: 380_000,
+        networkOutRate: 140_000,
+        diskUsed: 340_000_000_000,
+        diskTotal: 1_000_000_000_000,
+        temperature: 48,
+        processThreads: 18,
+        processMemory: 180_000_000
+    )
+}
+
+final class SystemSampler {
+    private var lastCpuTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
+    private var lastNetworkBytes: (input: UInt64, output: UInt64, time: Date)?
+
+    func sample() -> SystemTelemetry {
+        let cpuUsage = sampleCPU()
+        let memory = sampleMemory()
+        let network = sampleNetwork()
+        let disk = sampleDisk()
+        let process = sampleProcess()
+        let temperature = estimateTemperature(cpuUsage: cpuUsage, memoryPressure: memory.pressure, networkRate: network.input + network.output)
+
+        return SystemTelemetry(
+            cpuUsage: cpuUsage,
+            memoryUsed: memory.used,
+            memoryTotal: memory.total,
+            memoryPressure: memory.pressure,
+            networkInRate: network.input,
+            networkOutRate: network.output,
+            diskUsed: disk.used,
+            diskTotal: disk.total,
+            temperature: temperature,
+            processThreads: process.threads,
+            processMemory: process.memory
+        )
+    }
+
+    private func sampleCPU() -> Double {
+        var info = host_cpu_load_info()
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+            }
+        }
+
+        guard result == KERN_SUCCESS else { return SystemTelemetry.placeholder.cpuUsage }
+
+        let ticks = (
+            user: UInt64(info.cpu_ticks.0),
+            system: UInt64(info.cpu_ticks.1),
+            idle: UInt64(info.cpu_ticks.2),
+            nice: UInt64(info.cpu_ticks.3)
+        )
+
+        defer { lastCpuTicks = ticks }
+
+        guard let previous = lastCpuTicks else { return 0.35 }
+
+        let userDelta = ticks.user.saturatingSubtract(previous.user)
+        let systemDelta = ticks.system.saturatingSubtract(previous.system)
+        let idleDelta = ticks.idle.saturatingSubtract(previous.idle)
+        let niceDelta = ticks.nice.saturatingSubtract(previous.nice)
+        let active = userDelta + systemDelta + niceDelta
+        let total = active + idleDelta
+
+        guard total > 0 else { return 0 }
+        return min(1, max(0, Double(active) / Double(total)))
+    }
+
+    private func sampleMemory() -> (used: Double, total: Double, pressure: Double) {
+        var stats = vm_statistics64()
+        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &stats) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+            }
+        }
+
+        let total = Double(ProcessInfo.processInfo.physicalMemory)
+        guard result == KERN_SUCCESS else {
+            return (SystemTelemetry.placeholder.memoryUsed, total, SystemTelemetry.placeholder.memoryPressure)
+        }
+
+        var rawPageSize: vm_size_t = 0
+        host_page_size(mach_host_self(), &rawPageSize)
+        let pageSize = Double(rawPageSize)
+        let free = Double(stats.free_count + stats.inactive_count) * pageSize
+        let speculative = Double(stats.speculative_count) * pageSize
+        let used = max(0, total - free + speculative)
+        let pressure = total > 0 ? min(1, max(0, used / total)) : 0
+        return (used, total, pressure)
+    }
+
+    private func sampleNetwork() -> (input: Double, output: Double) {
+        var pointer: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&pointer) == 0, let first = pointer else {
+            return (0, 0)
+        }
+        defer { freeifaddrs(pointer) }
+
+        var input: UInt64 = 0
+        var output: UInt64 = 0
+        var cursor: UnsafeMutablePointer<ifaddrs>? = first
+
+        while let current = cursor {
+            let flags = Int32(current.pointee.ifa_flags)
+            let isUp = (flags & IFF_UP) != 0
+            let isLoopback = (flags & IFF_LOOPBACK) != 0
+
+            if isUp && !isLoopback,
+               let dataPointer = current.pointee.ifa_data {
+                let data = dataPointer.assumingMemoryBound(to: if_data.self).pointee
+                input += UInt64(data.ifi_ibytes)
+                output += UInt64(data.ifi_obytes)
+            }
+
+            cursor = current.pointee.ifa_next
+        }
+
+        let now = Date()
+        defer { lastNetworkBytes = (input, output, now) }
+
+        guard let previous = lastNetworkBytes else { return (0, 0) }
+
+        let elapsed = max(0.1, now.timeIntervalSince(previous.time))
+        let inputRate = Double(input.saturatingSubtract(previous.input)) / elapsed
+        let outputRate = Double(output.saturatingSubtract(previous.output)) / elapsed
+        return (inputRate, outputRate)
+    }
+
+    private func sampleDisk() -> (used: Double, total: Double) {
+        do {
+            let values = try URL(fileURLWithPath: NSHomeDirectory()).resourceValues(forKeys: [
+                .volumeTotalCapacityKey,
+                .volumeAvailableCapacityForImportantUsageKey
+            ])
+            let total = Double(values.volumeTotalCapacity ?? 0)
+            let available = Double(values.volumeAvailableCapacityForImportantUsage ?? 0)
+            let used = max(0, total - available)
+            return (used, total)
+        } catch {
+            return (SystemTelemetry.placeholder.diskUsed, SystemTelemetry.placeholder.diskTotal)
+        }
+    }
+
+    private func sampleProcess() -> (threads: Int, memory: Double) {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+
+        var threads: thread_act_array_t?
+        var threadCount: mach_msg_type_number_t = 0
+        let threadResult = task_threads(mach_task_self_, &threads, &threadCount)
+        if threadResult == KERN_SUCCESS, let threads {
+            vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threads)), vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.stride))
+        }
+
+        return (
+            Int(threadCount),
+            result == KERN_SUCCESS ? Double(info.resident_size) : SystemTelemetry.placeholder.processMemory
+        )
+    }
+
+    private func estimateTemperature(cpuUsage: Double, memoryPressure: Double, networkRate: Double) -> Double {
+        let networkHeat = min(1, networkRate / 8_000_000)
+        let thermalStateBoost: Double
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: thermalStateBoost = 0
+        case .fair: thermalStateBoost = 5
+        case .serious: thermalStateBoost = 12
+        case .critical: thermalStateBoost = 20
+        @unknown default: thermalStateBoost = 4
+        }
+        return 34 + (cpuUsage * 35) + (memoryPressure * 8) + (networkHeat * 4) + thermalStateBoost
+    }
+}
+
+private extension UInt64 {
+    func saturatingSubtract(_ value: UInt64) -> UInt64 {
+        self > value ? self - value : 0
+    }
+}
+
+@MainActor
+final class LiveDataHub: ObservableObject {
+    @Published var now = Date()
+    @Published var telemetry = SystemTelemetry.placeholder
+    @Published var pulse: Double = 0
+
+    private let sampler = SystemSampler()
+    private var timer: Timer?
+
+    func start() {
+        guard timer == nil else { return }
+        telemetry = sampler.sample()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.tick()
+            }
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func tick() {
+        now = Date()
+        pulse = (pulse + 0.025).truncatingRemainder(dividingBy: 1)
+        telemetry = sampler.sample()
+    }
+}
