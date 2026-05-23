@@ -1,5 +1,69 @@
 import SwiftUI
 
+struct CPUCoreWidget: View {
+    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
+
+    private var cores: [Double] {
+        let usage = liveData.telemetry.cpuCoreUsage
+        return usage.isEmpty ? Array(repeating: liveData.telemetry.cpuUsage, count: ProcessInfo.processInfo.processorCount) : usage
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                MicroStat(label: "CORES", value: "\(cores.count)", color: .gold)
+                MicroStat(label: "AVG", value: Formatters.percent(averageLoad), color: .apricot)
+                MicroStat(label: "PEAK", value: Formatters.percent(peakLoad), color: .rose)
+                Spacer()
+                Text("PROC BUS")
+                    .font(theme.typography.data(size: 12))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(theme.color(.violet), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72, maximum: 120), spacing: 8)], spacing: 8) {
+                ForEach(Array(cores.enumerated()), id: \.offset) { index, load in
+                    VStack(spacing: 5) {
+                        Text("C\(index)")
+                            .font(theme.typography.data(size: 11))
+                            .foregroundStyle(theme.palette.mutedText.opacity(0.82))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        SegmentedBar(progress: load, color: color(for: load), segments: 12)
+                            .frame(height: 10)
+                        Text(Formatters.percent(load))
+                            .font(theme.typography.display(size: 13))
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .padding(8)
+                    .background(theme.palette.screen.opacity(0.55), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous)
+                            .stroke(theme.color(color(for: load)).opacity(0.35), lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+
+    private var averageLoad: Double {
+        guard !cores.isEmpty else { return 0 }
+        return cores.reduce(0, +) / Double(cores.count)
+    }
+
+    private var peakLoad: Double {
+        cores.max() ?? 0
+    }
+
+    private func color(for load: Double) -> AstraColorRole {
+        if load > 0.78 { return .rose }
+        if load > 0.52 { return .gold }
+        return .mint
+    }
+}
+
 struct CPUWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
 
@@ -12,8 +76,8 @@ struct CPUWidget: View {
                 WaveformView(seed: 3, amplitude: liveData.telemetry.cpuUsage, color: .apricot)
                     .frame(height: 42)
                 HStack {
-                    MicroStat(label: "CORES", value: "\(ProcessInfo.processInfo.processorCount)")
-                    MicroStat(label: "THREADS", value: "\(ProcessInfo.processInfo.activeProcessorCount)")
+                    MicroStat(label: "CORES", value: "\(liveData.telemetry.cpuCoreUsage.count)")
+                    MicroStat(label: "AVG", value: Formatters.percent(liveData.telemetry.cpuUsage))
                 }
             }
         }

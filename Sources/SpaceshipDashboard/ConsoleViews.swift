@@ -36,6 +36,14 @@ struct ConsoleBackground: View {
             theme.palette.screen
             GridTexture()
                 .opacity(0.34)
+            ScanlineOverlay()
+                .opacity(0.08)
+            RadialGradient(
+                colors: [.clear, .black.opacity(0.42)],
+                center: .center,
+                startRadius: 120,
+                endRadius: 900
+            )
             LinearGradient(
                 colors: [
                     .black.opacity(0.05),
@@ -47,6 +55,20 @@ struct ConsoleBackground: View {
             )
         }
         .ignoresSafeArea()
+    }
+}
+
+struct ScanlineOverlay: View {
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            stride(from: CGFloat(0), through: size.height, by: 3).forEach { y in
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            context.stroke(path, with: .color(.white.opacity(0.04)), lineWidth: 1)
+        }
+        .blendMode(.overlay)
     }
 }
 
@@ -90,11 +112,11 @@ struct CommandHeader: View {
 
     var body: some View {
         HStack(spacing: theme.metrics.gap) {
-            ConsoleElbow(color: .apricot, compact: false)
+            ConsoleElbow(color: store.selectedDashboard.accentRole, compact: false)
             VStack(alignment: .leading, spacing: 2) {
-                Text("ASTRA OPS")
-                    .font(theme.typography.display(size: 27))
-                    .tracking(1.4)
+                Text("USS ASTRA · \(store.selectedDashboard.deckCode)")
+                    .font(theme.typography.display(size: 24))
+                    .tracking(1.2)
                 Text(store.selectedDashboard.subtitle.uppercased())
                     .font(theme.typography.systemData(size: 12, weight: .semibold))
                     .foregroundStyle(theme.palette.mutedText)
@@ -102,6 +124,7 @@ struct CommandHeader: View {
             Spacer()
             HeaderChip(title: Formatters.clock(liveData.now), color: .violet)
             HeaderChip(title: "CPU \(Formatters.percent(liveData.telemetry.cpuUsage))", color: .gold)
+            HeaderChip(title: "MEM \(Formatters.percent(liveData.telemetry.memoryPressure))", color: .rose)
             HeaderChip(title: "NET \(Formatters.rate(liveData.telemetry.networkInRate + liveData.telemetry.networkOutRate))", color: .cyan)
             Button {
                 withAnimation(.snappy(duration: 0.18)) {
@@ -423,7 +446,17 @@ struct ConsoleSidebar: View {
                     Button {
                         store.select(dashboard)
                     } label: {
-                        HStack {
+                        HStack(spacing: 8) {
+                            Text(dashboard.deckCode)
+                                .font(theme.typography.data(size: 11))
+                                .foregroundStyle(.black)
+                                .frame(width: 52, height: 24)
+                                .background(
+                                    dashboard.id == store.selectedDashboardID
+                                    ? theme.color(.mint)
+                                    : theme.color(dashboard.accentRole).opacity(0.82),
+                                    in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4)
+                                )
                             Text(dashboard.name.uppercased())
                                 .font(theme.typography.display(size: 14))
                                 .lineLimit(1)
@@ -440,7 +473,7 @@ struct ConsoleSidebar: View {
                         .frame(height: 42)
                         .background(
                             dashboard.id == store.selectedDashboardID
-                            ? theme.color(.apricot).opacity(0.95)
+                            ? theme.color(dashboard.accentRole).opacity(0.95)
                             : theme.palette.panelHighlight.opacity(0.72),
                             in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6)
                         )
@@ -502,10 +535,10 @@ struct DashboardCanvas: View {
 
     var body: some View {
         AstraCFrame(
-            accent: .violet,
-            secondary: .gold,
+            accent: dashboard.accentRole,
+            secondary: dashboard.secondaryRole,
             topLabel: dashboard.name,
-            bottomLabel: "BR MIL",
+            bottomLabel: dashboard.deckCode,
             railWidth: 150
         ) {
             ScrollView {
@@ -576,9 +609,9 @@ struct DashboardWidgetCard: View {
 
             VStack(spacing: 0) {
                 WidgetHeader(widget: widget)
-                Rectangle()
-                    .fill(theme.color(widget.kind.group.accent).opacity(0.38))
-                    .frame(height: 1)
+                AstraRailStrip(accent: widget.kind.group.accent, secondary: .gold, label: widget.kind.panelCode, flipped: true)
+                    .frame(height: 18)
+                    .padding(.horizontal, 10)
                 widgetBody
                     .padding(14)
                     .frame(maxWidth: .infinity, minHeight: max(86, widget.size.minHeight - 48), alignment: .topLeading)
@@ -603,6 +636,7 @@ struct DashboardWidgetCard: View {
     private var widgetBody: some View {
         switch widget.kind {
         case .cpuActivity: CPUWidget()
+        case .cpuCoreUsage: CPUCoreWidget()
         case .memoryPressure: MemoryWidget()
         case .networkActivity: NetworkWidget()
         case .diskUsage: DiskWidget()

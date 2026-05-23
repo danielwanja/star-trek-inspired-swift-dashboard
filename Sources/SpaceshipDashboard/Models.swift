@@ -78,6 +78,7 @@ enum WidgetSize: String, CaseIterable, Codable, Identifiable {
 
 enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     case cpuActivity
+    case cpuCoreUsage
     case memoryPressure
     case networkActivity
     case diskUsage
@@ -109,7 +110,7 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
 
     var group: WidgetGroup {
         switch self {
-        case .cpuActivity, .memoryPressure, .networkActivity, .diskUsage, .temperature, .processPulse:
+        case .cpuActivity, .cpuCoreUsage, .memoryPressure, .networkActivity, .diskUsage, .temperature, .processPulse:
             .system
         case .epochMillis, .formatTime, .analogClock, .calendar, .worldClock, .countdown, .progressBars:
             .general
@@ -125,6 +126,7 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .cpuActivity: "CPU Activity"
+        case .cpuCoreUsage: "Core Matrix"
         case .memoryPressure: "Memory"
         case .networkActivity: "Network"
         case .diskUsage: "Disk Usage"
@@ -157,6 +159,7 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     var subtitle: String {
         switch self {
         case .cpuActivity: "Host processor load"
+        case .cpuCoreUsage: "Per-core utilization lanes"
         case .memoryPressure: "RAM allocation and pressure"
         case .networkActivity: "Interface transfer rate"
         case .diskUsage: "Boot volume capacity"
@@ -190,7 +193,7 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .galaxy:
             .hero
-        case .starMap, .planetOrbit, .missionStatus, .powerDistribution:
+        case .starMap, .planetOrbit, .missionStatus, .powerDistribution, .cpuCoreUsage:
             .wide
         case .fakeDataMatrix, .alertLog, .calendar, .tacticalSweep:
             .tall
@@ -202,6 +205,7 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     var icon: String {
         switch self {
         case .cpuActivity: "cpu"
+        case .cpuCoreUsage: "square.grid.3x3.fill"
         case .memoryPressure: "memorychip"
         case .networkActivity: "network"
         case .diskUsage: "internaldrive"
@@ -234,6 +238,7 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     var panelCode: String {
         switch self {
         case .cpuActivity: "01-CPU"
+        case .cpuCoreUsage: "01C-COR"
         case .memoryPressure: "02-MEM"
         case .networkActivity: "03-NET"
         case .diskUsage: "04-DSK"
@@ -291,7 +296,51 @@ struct DashboardLayout: Identifiable, Codable, Equatable {
 }
 
 extension DashboardLayout {
+    var deckCode: String {
+        switch name {
+        case "Engineering": "01-ENG"
+        case "Command Deck": "02-CMD"
+        case "Astrometrics": "03-AST"
+        case "Set Playback": "04-SET"
+        default: "99-OPS"
+        }
+    }
+
+    var accentRole: AstraColorRole {
+        switch name {
+        case "Engineering": .gold
+        case "Command Deck": .apricot
+        case "Astrometrics": .cyan
+        case "Set Playback": .rose
+        default: .violet
+        }
+    }
+
+    var secondaryRole: AstraColorRole {
+        switch name {
+        case "Engineering": .apricot
+        case "Command Deck": .gold
+        case "Astrometrics": .violet
+        case "Set Playback": .gold
+        default: .gold
+        }
+    }
+
     static let defaultDashboards: [DashboardLayout] = [
+        DashboardLayout(
+            name: "Engineering",
+            subtitle: "Primary computer and propulsion telemetry",
+            widgets: [
+                DashboardWidget(kind: .cpuCoreUsage, size: .wide),
+                DashboardWidget(kind: .cpuActivity),
+                DashboardWidget(kind: .memoryPressure),
+                DashboardWidget(kind: .networkActivity),
+                DashboardWidget(kind: .diskUsage),
+                DashboardWidget(kind: .temperature),
+                DashboardWidget(kind: .processPulse),
+                DashboardWidget(kind: .progressBars, size: .wide)
+            ]
+        ),
         DashboardLayout(
             name: "Command Deck",
             subtitle: "Primary cinematic operating surface",
@@ -308,23 +357,6 @@ extension DashboardLayout {
                 DashboardWidget(kind: .alertLog, size: .tall),
                 DashboardWidget(kind: .worldClock),
                 DashboardWidget(kind: .countdown)
-            ]
-        ),
-        DashboardLayout(
-            name: "Engineering",
-            subtitle: "System telemetry, resource flow, and diagnostics",
-            widgets: [
-                DashboardWidget(kind: .cpuActivity),
-                DashboardWidget(kind: .memoryPressure),
-                DashboardWidget(kind: .networkActivity),
-                DashboardWidget(kind: .diskUsage),
-                DashboardWidget(kind: .temperature),
-                DashboardWidget(kind: .processPulse),
-                DashboardWidget(kind: .powerDistribution, size: .wide),
-                DashboardWidget(kind: .lifeSupport),
-                DashboardWidget(kind: .fakeDiagnostics, size: .wide),
-                DashboardWidget(kind: .progressBars, size: .wide),
-                DashboardWidget(kind: .fakeDataMatrix, size: .tall)
             ]
         ),
         DashboardLayout(

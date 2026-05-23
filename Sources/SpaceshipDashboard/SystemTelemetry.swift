@@ -3,6 +3,7 @@ import Foundation
 
 struct SystemTelemetry: Equatable {
     var cpuUsage: Double
+    var cpuCoreUsage: [Double]
     var memoryUsed: Double
     var memoryTotal: Double
     var memoryPressure: Double
@@ -16,6 +17,7 @@ struct SystemTelemetry: Equatable {
 
     static let placeholder = SystemTelemetry(
         cpuUsage: 0.42,
+        cpuCoreUsage: Array(repeating: 0.38, count: max(1, ProcessInfo.processInfo.processorCount)),
         memoryUsed: 8_000_000_000,
         memoryTotal: 16_000_000_000,
         memoryPressure: 0.50,
@@ -31,10 +33,12 @@ struct SystemTelemetry: Equatable {
 
 final class SystemSampler {
     private var lastCpuTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
+    private var lastPerCoreTicks: [(user: UInt32, system: UInt32, idle: UInt32, nice: UInt32)]?
     private var lastNetworkBytes: (input: UInt64, output: UInt64, time: Date)?
 
     func sample() -> SystemTelemetry {
         let cpuUsage = sampleCPU()
+        let cpuCoreUsage = sampleCPUCores()
         let memory = sampleMemory()
         let network = sampleNetwork()
         let disk = sampleDisk()
@@ -43,6 +47,7 @@ final class SystemSampler {
 
         return SystemTelemetry(
             cpuUsage: cpuUsage,
+            cpuCoreUsage: cpuCoreUsage,
             memoryUsed: memory.used,
             memoryTotal: memory.total,
             memoryPressure: memory.pressure,
@@ -87,6 +92,60 @@ final class SystemSampler {
 
         guard total > 0 else { return 0 }
         return min(1, max(0, Double(active) / Double(total)))
+    }
+
+    private func sampleCPUCores() -> [Double] {
+        var numCPUs: natural_t = 0
+        var cpuInfo: processor_info_array_t?
+        var numCpuInfo: mach_msg_type_number_t = 0
+
+        let result = host_processor_info(
+            mach_host_self(),
+            PROCESSOR_CPU_LOAD_INFO,
+            &numCPUs,
+            &cpuInfo,
+            &numCpuInfo
+        )
+
+        guard result == KERN_SUCCESS, let cpuInfo else {
+            return Array(repeating: SystemTelemetry.placeholder.cpuUsage, count: ProcessInfo.processInfo.processorCount)
+        }
+
+        defer {
+            let size = vm_size_t(numCpuInfo) * vm_size_t(MemoryLayout<integer_t>.size)
+            vm_deallocate(mach_host_self(), vm_address_t(bitPattern: cpuInfo), size)
+        }
+
+        let loadInfoCount = MemoryLayout<processor_cpu_load_info>.size / MemoryLayout<integer_t>.size
+        var currentTicks: [(user: UInt32, system: UInt32, idle: UInt32, nice: UInt32)] = []
+
+        for index in 0..<Int(numCPUs) {
+            let offset = index * loadInfoCount
+            let info = cpuInfo.advanced(by: offset).withMemoryRebound(to: processor_cpu_load_info.self, capacity: 1) { $0.pointee }
+            currentTicks.append((
+                user: info.cpu_ticks.0,
+                system: info.cpu_ticks.1,
+                idle: info.cpu_ticks.2,
+                nice: info.cpu_ticks.3
+            ))
+        }
+
+        defer { lastPerCoreTicks = currentTicks }
+
+        guard let previous = lastPerCoreTicks, previous.count == currentTicks.count else {
+            return Array(repeating: 0.25, count: currentTicks.count)
+        }
+
+        return zip(currentTicks, previous).map { current, previous in
+            let userDelta = UInt64(current.user).saturatingSubtract(UInt64(previous.user))
+            let systemDelta = UInt64(current.system).saturatingSubtract(UInt64(previous.system))
+            let idleDelta = UInt64(current.idle).saturatingSubtract(UInt64(previous.idle))
+            let niceDelta = UInt64(current.nice).saturatingSubtract(UInt64(previous.nice))
+            let active = userDelta + systemDelta + niceDelta
+            let total = active + idleDelta
+            guard total > 0 else { return 0 }
+            return min(1, max(0, Double(active) / Double(total)))
+        }
     }
 
     private func sampleMemory() -> (used: Double, total: Double, pressure: Double) {

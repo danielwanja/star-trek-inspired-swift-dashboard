@@ -210,19 +210,24 @@ struct CountdownWidget: View {
 struct ProgressBarsWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
 
-    private let rows: [(String, AstraColorRole, Double)] = [
-        ("VECTOR LOCK", .cyan, 0.67),
-        ("WARP INDEX", .gold, 0.41),
-        ("BAY SEAL", .mint, 0.91),
-        ("SENSOR FOCUS", .violet, 0.54),
-        ("CORE BUFFER", .rose, 0.73)
-    ]
+    private var rows: [(String, AstraColorRole, Double)] {
+        let telemetry = liveData.telemetry
+        let diskRatio = telemetry.diskTotal > 0 ? telemetry.diskUsed / telemetry.diskTotal : 0
+        let networkRatio = min(1, (telemetry.networkInRate + telemetry.networkOutRate) / 8_000_000)
+        let thermalRatio = ((telemetry.temperature - 28) / 55).clamped(to: 0...1)
+        return [
+            ("CPU LOAD", .gold, telemetry.cpuUsage),
+            ("MEMORY", .violet, telemetry.memoryPressure),
+            ("NETWORK", .cyan, networkRatio),
+            ("STORAGE", .apricot, diskRatio),
+            ("THERMAL", .rose, thermalRatio)
+        ]
+    }
 
     var body: some View {
         VStack(spacing: 11) {
             ForEach(rows, id: \.0) { row in
-                let progress = (row.2 + sin(liveData.pulse * .pi * 2 + row.2 * 5) * 0.04).clamped(to: 0...1)
-                MetricLine(label: row.0, value: Formatters.percent(progress), progress: progress, color: row.1)
+                MetricLine(label: row.0, value: Formatters.percent(row.2), progress: row.2, color: row.1)
             }
         }
     }

@@ -5,11 +5,13 @@ final class DashboardStore: ObservableObject {
     @Published var dashboards: [DashboardLayout]
     @Published var selectedDashboardID: UUID
     @Published var builderGroup: WidgetGroup = .system
-    @Published var isBuilderVisible: Bool = true
+    @Published var isBuilderVisible: Bool = false
     @Published var selectedThemeID: AstraThemeID
 
-    private let defaultsKey = "spaceship-dashboard.layouts.v1"
-    private let selectedKey = "spaceship-dashboard.selected.v1"
+    private let defaultsKey = "spaceship-dashboard.layouts.v2"
+    private let selectedKey = "spaceship-dashboard.selected.v2"
+    private let legacyDefaultsKey = "spaceship-dashboard.layouts.v1"
+    private let legacySelectedKey = "spaceship-dashboard.selected.v1"
     private let themeKey = "spaceship-dashboard.theme.v1"
 
     init() {
@@ -17,7 +19,11 @@ final class DashboardStore: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: defaultsKey),
            let decoded = try? JSONDecoder().decode([DashboardLayout].self, from: data),
            !decoded.isEmpty {
-            loadedDashboards = decoded
+            loadedDashboards = Self.normalizedDashboards(decoded)
+        } else if let data = UserDefaults.standard.data(forKey: legacyDefaultsKey),
+                  let decoded = try? JSONDecoder().decode([DashboardLayout].self, from: data),
+                  !decoded.isEmpty {
+            loadedDashboards = Self.migratedDashboards(from: decoded)
         } else {
             loadedDashboards = DashboardLayout.defaultDashboards
         }
@@ -27,6 +33,10 @@ final class DashboardStore: ObservableObject {
            let id = UUID(uuidString: rawID),
            loadedDashboards.contains(where: { $0.id == id }) {
             selectedDashboardID = id
+        } else if let rawID = UserDefaults.standard.string(forKey: legacySelectedKey),
+                  let id = UUID(uuidString: rawID),
+                  loadedDashboards.contains(where: { $0.id == id }) {
+            selectedDashboardID = loadedDashboards.first(where: { $0.name == "Engineering" })?.id ?? id
         } else {
             selectedDashboardID = loadedDashboards[0].id
         }
@@ -36,6 +46,11 @@ final class DashboardStore: ObservableObject {
             selectedThemeID = themeID
         } else {
             selectedThemeID = .classic
+        }
+
+        if UserDefaults.standard.data(forKey: defaultsKey) == nil {
+            save()
+            saveSelection()
         }
     }
 
@@ -155,5 +170,30 @@ final class DashboardStore: ObservableObject {
 
     private func saveSelection() {
         UserDefaults.standard.set(selectedDashboardID.uuidString, forKey: selectedKey)
+    }
+
+    private static func migratedDashboards(from legacy: [DashboardLayout]) -> [DashboardLayout] {
+        normalizedDashboards(legacy)
+    }
+
+    private static func normalizedDashboards(_ dashboards: [DashboardLayout]) -> [DashboardLayout] {
+        let defaults = DashboardLayout.defaultDashboards
+        var ordered = defaults
+        for dashboard in dashboards where !defaults.contains(where: { $0.name == dashboard.name }) {
+            ordered.append(dashboard)
+        }
+        for index in ordered.indices {
+            if let match = dashboards.first(where: { $0.name == ordered[index].name }) {
+                ordered[index].id = match.id
+                if match.name == "Engineering" {
+                    ordered[index].widgets = defaults.first(where: { $0.name == "Engineering" })?.widgets ?? match.widgets
+                    ordered[index].subtitle = defaults.first(where: { $0.name == "Engineering" })?.subtitle ?? match.subtitle
+                } else {
+                    ordered[index].widgets = match.widgets
+                    ordered[index].subtitle = match.subtitle
+                }
+            }
+        }
+        return ordered
     }
 }

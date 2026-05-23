@@ -125,12 +125,12 @@ struct AstraConsoleTheme {
             outerPadding: 18,
             gap: 12,
             fineGap: 5,
-            rail: 42,
-            minorRail: 12,
-            terminalRadius: 24,
-            panelRadius: 10,
-            dataRadius: 5,
-            panelOpacity: 0.72
+            rail: 46,
+            minorRail: 14,
+            terminalRadius: 28,
+            panelRadius: 8,
+            dataRadius: 4,
+            panelOpacity: 0.78
         ),
         typography: AstraTypography(displayFamily: "HelveticaNeue-CondensedBlack", dataFamily: "DINCondensed-Bold"),
         animationIntensity: 1
