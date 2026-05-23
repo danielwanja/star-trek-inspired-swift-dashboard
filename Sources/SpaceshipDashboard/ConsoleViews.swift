@@ -228,10 +228,10 @@ struct AstraCFrame<Content: View>: View {
                     .background(theme.palette.screen.opacity(0.72), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
 
                 HStack(spacing: theme.metrics.fineGap) {
-                    topBar(label: bottomLabel, color: secondary, leadingRadius: 0)
+                    topBar(label: bottomLabel, color: accent, leadingRadius: 0)
                     smallSegment(color: .violet)
-                    topBar(label: "BR SCH", color: accent, compact: true)
-                    terminal(color: accent)
+                    topBar(label: "BR SCH", color: secondary, compact: true)
+                    terminal(color: secondary)
                 }
                 .frame(height: theme.metrics.rail * 0.82)
             }
