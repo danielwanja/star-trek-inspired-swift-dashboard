@@ -58,6 +58,10 @@ final class DashboardStore: ObservableObject {
         selectedThemeID.theme
     }
 
+    func dashboard(with id: UUID) -> DashboardLayout? {
+        dashboards.first { $0.id == id }
+    }
+
     var selectedDashboard: DashboardLayout {
         get {
             dashboards.first(where: { $0.id == selectedDashboardID }) ?? dashboards[0]

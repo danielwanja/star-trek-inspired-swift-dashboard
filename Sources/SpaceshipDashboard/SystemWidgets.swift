@@ -122,8 +122,10 @@ struct NetworkWidget: View {
                 progress: min(1, (liveData.telemetry.networkInRate + liveData.telemetry.networkOutRate) / 8_000_000),
                 color: .cyan
             )
-            PacketLanes(input: liveData.telemetry.networkInRate, output: liveData.telemetry.networkOutRate, pulse: liveData.pulse)
-                .frame(height: 58)
+            AnimationPhaseView(speed: 0.18) { phase in
+                PacketLanes(input: liveData.telemetry.networkInRate, output: liveData.telemetry.networkOutRate, phase: phase)
+                    .frame(height: 58)
+            }
         }
     }
 }
@@ -294,7 +296,7 @@ struct PacketLanes: View {
     @Environment(\.astraTheme) private var theme
     var input: Double
     var output: Double
-    var pulse: Double
+    var phase: Double
 
     var body: some View {
         Canvas { context, size in
@@ -308,7 +310,7 @@ struct PacketLanes: View {
 
                 let direction: CGFloat = lane.isMultiple(of: 2) ? 1 : -1
                 let speed = min(1, (lane.isMultiple(of: 2) ? input : output) / 4_000_000)
-                let offset = CGFloat((pulse + Double(lane) * 0.17).truncatingRemainder(dividingBy: 1))
+                let offset = CGFloat((phase + Double(lane) * 0.17).truncatingRemainder(dividingBy: 1))
                 for packet in 0..<7 {
                     let base = (CGFloat(packet) / 7 + offset).truncatingRemainder(dividingBy: 1)
                     let x = direction > 0 ? base * size.width : (1 - base) * size.width

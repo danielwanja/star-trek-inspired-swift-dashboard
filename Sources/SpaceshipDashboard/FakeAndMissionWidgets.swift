@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct FakeTelemetryWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
-
     private let rows = [
         ("EPSILON BAND", AstraColorRole.cyan, 0.71),
         ("SUBSPACE FOAM", AstraColorRole.violet, 0.48),
@@ -12,42 +10,45 @@ struct FakeTelemetryWidget: View {
     ]
 
     var body: some View {
-        VStack(spacing: 11) {
-            ForEach(rows, id: \.0) { row in
-                let value = (row.2 + sin(liveData.pulse * .pi * 2 + row.2) * 0.09).clamped(to: 0...1)
-                MetricLine(label: row.0, value: codeValue(value), progress: value, color: row.1)
+        AnimationPhaseView(speed: 0.10) { phase in
+            VStack(spacing: 11) {
+                ForEach(rows, id: \.0) { row in
+                    let value = (row.2 + sin(phase * .pi * 2 + row.2) * 0.09).clamped(to: 0...1)
+                    MetricLine(label: row.0, value: codeValue(value, phase: phase), progress: value, color: row.1)
+                }
             }
         }
     }
 
-    private func codeValue(_ value: Double) -> String {
-        "N\(Int(value * 900 + 100))-A\(Int(liveData.pulse * 99))"
+    private func codeValue(_ value: Double, phase: Double) -> String {
+        "N\(Int(value * 900 + 100))-A\(Int(phase * 99))"
     }
 }
 
 struct DataMatrixWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        GeometryReader { proxy in
-            let columns = 6
-            let rows = 8
-            let gap: CGFloat = 4
-            let cellWidth = (proxy.size.width - CGFloat(columns - 1) * gap) / CGFloat(columns)
-            let cellHeight = (proxy.size.height - CGFloat(rows - 1) * gap) / CGFloat(rows)
+        AnimationPhaseView(speed: 0.16) { phase in
+            GeometryReader { proxy in
+                let columns = 6
+                let rows = 8
+                let gap: CGFloat = 4
+                let cellWidth = (proxy.size.width - CGFloat(columns - 1) * gap) / CGFloat(columns)
+                let cellHeight = (proxy.size.height - CGFloat(rows - 1) * gap) / CGFloat(rows)
 
-            VStack(spacing: gap) {
-                ForEach(0..<rows, id: \.self) { row in
-                    HStack(spacing: gap) {
-                        ForEach(0..<columns, id: \.self) { column in
-                            let index = row * columns + column
-                            let lit = ((index + Int(liveData.pulse * 100)) % 7) < 3
-                            Text(token(index))
-                                .font(theme.typography.data(size: 12))
-                                .foregroundStyle(lit ? .black : theme.palette.text.opacity(0.35))
-                                .frame(width: cellWidth, height: cellHeight)
-                                .background(lit ? color(index).opacity(0.95) : theme.palette.text.opacity(0.055), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+                VStack(spacing: gap) {
+                    ForEach(0..<rows, id: \.self) { row in
+                        HStack(spacing: gap) {
+                            ForEach(0..<columns, id: \.self) { column in
+                                let index = row * columns + column
+                                let lit = ((index + Int(phase * 100)) % 7) < 3
+                                Text(token(index))
+                                    .font(theme.typography.data(size: 12))
+                                    .foregroundStyle(lit ? .black : theme.palette.text.opacity(0.35))
+                                    .frame(width: cellWidth, height: cellHeight)
+                                    .background(lit ? color(index).opacity(0.95) : theme.palette.text.opacity(0.055), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+                            }
                         }
                     }
                 }
@@ -66,7 +67,6 @@ struct DataMatrixWidget: View {
 }
 
 struct FakeDiagnosticsWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     private let checks = [
@@ -79,31 +79,33 @@ struct FakeDiagnosticsWidget: View {
     ]
 
     var body: some View {
-        VStack(spacing: 9) {
-            ForEach(Array(checks.enumerated()), id: \.element) { index, check in
-                HStack(spacing: 8) {
-                    Text(check)
-                        .font(theme.typography.data(size: 13))
-                        .foregroundStyle(theme.palette.text.opacity(0.78))
-                    Spacer()
-                    Text(status(index))
-                        .font(theme.typography.data(size: 12))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 5)
-                        .background(statusColor(index), in: Capsule())
+        AnimationPhaseView(speed: 0.09) { phase in
+            VStack(spacing: 9) {
+                ForEach(Array(checks.enumerated()), id: \.element) { index, check in
+                    HStack(spacing: 8) {
+                        Text(check)
+                            .font(theme.typography.data(size: 13))
+                            .foregroundStyle(theme.palette.text.opacity(0.78))
+                        Spacer()
+                        Text(status(index, phase: phase))
+                            .font(theme.typography.data(size: 12))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(statusColor(index), in: Capsule())
+                    }
+                    SegmentedBar(progress: progress(index, phase: phase), color: color(index), segments: 20)
                 }
-                SegmentedBar(progress: progress(index), color: color(index), segments: 20)
             }
         }
     }
 
-    private func progress(_ index: Int) -> Double {
-        (0.35 + Double(index) * 0.08 + sin(liveData.pulse * .pi * 2 + Double(index)) * 0.05).clamped(to: 0...1)
+    private func progress(_ index: Int, phase: Double) -> Double {
+        (0.35 + Double(index) * 0.08 + sin(phase * .pi * 2 + Double(index)) * 0.05).clamped(to: 0...1)
     }
 
-    private func status(_ index: Int) -> String {
-        progress(index) > 0.72 ? "SYNC" : progress(index) > 0.48 ? "SCAN" : "WAIT"
+    private func status(_ index: Int, phase: Double) -> String {
+        progress(index, phase: phase) > 0.72 ? "SYNC" : progress(index, phase: phase) > 0.48 ? "SCAN" : "WAIT"
     }
 
     private func color(_ index: Int) -> AstraColorRole {
@@ -116,24 +118,25 @@ struct FakeDiagnosticsWidget: View {
 }
 
 struct MissionStatusWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 9) {
-                Text("COMMAND DECK")
-                    .font(theme.typography.display(size: 30))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-                Text("PRIMARY OPERATIONS \(Int(liveData.pulse * 9999))")
-                    .font(theme.typography.data(size: 13))
-                    .foregroundStyle(theme.color(.gold))
-                MetricLine(label: "Mission Index", value: "GREEN", progress: 0.82, color: .mint)
-                MetricLine(label: "Crew Link", value: "96%", progress: 0.96, color: .cyan)
+        AnimationPhaseView(speed: 0.07) { phase in
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 9) {
+                    Text("COMMAND DECK")
+                        .font(theme.typography.display(size: 30))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                    Text("PRIMARY OPERATIONS \(Int(phase * 9999))")
+                        .font(theme.typography.data(size: 13))
+                        .foregroundStyle(theme.color(.gold))
+                    MetricLine(label: "Mission Index", value: "GREEN", progress: 0.82, color: .mint)
+                    MetricLine(label: "Crew Link", value: "96%", progress: 0.96, color: .cyan)
+                }
+                ConsoleRing(value: 0.82 + sin(phase * .pi * 2) * 0.04, color: .mint, label: "Ops")
+                    .frame(width: 128, height: 128)
             }
-            ConsoleRing(value: 0.82 + sin(liveData.pulse * .pi * 2) * 0.04, color: .mint, label: "Ops")
-                .frame(width: 128, height: 128)
         }
     }
 }
@@ -157,16 +160,16 @@ struct CrewReadinessWidget: View {
 }
 
 struct ShieldGridWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
-
     var body: some View {
-        VStack(spacing: 12) {
-            ShieldCanvas(phase: liveData.pulse)
-                .frame(height: 82)
-            HStack(spacing: 8) {
-                MicroStat(label: "FORE", value: "91%", color: .cyan)
-                MicroStat(label: "AFT", value: "87%", color: .violet)
-                MicroStat(label: "PORT", value: "94%", color: .gold)
+        AnimationPhaseView(speed: 0.11) { phase in
+            VStack(spacing: 12) {
+                ShieldCanvas(phase: phase)
+                    .frame(height: 82)
+                HStack(spacing: 8) {
+                    MicroStat(label: "FORE", value: "91%", color: .cyan)
+                    MicroStat(label: "AFT", value: "87%", color: .violet)
+                    MicroStat(label: "PORT", value: "94%", color: .gold)
+                }
             }
         }
     }
@@ -203,18 +206,18 @@ struct LifeSupportWidget: View {
 }
 
 struct PowerDistributionWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
-
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(spacing: 11) {
-                MetricLine(label: "Impulse", value: "72%", progress: 0.72, color: .gold)
-                MetricLine(label: "Habitat", value: "43%", progress: 0.43, color: .violet)
-                MetricLine(label: "Sensors", value: "61%", progress: 0.61, color: .cyan)
-                MetricLine(label: "Reserve", value: "89%", progress: 0.89, color: .mint)
+        AnimationPhaseView(speed: 0.13) { phase in
+            HStack(spacing: 16) {
+                VStack(spacing: 11) {
+                    MetricLine(label: "Impulse", value: "72%", progress: 0.72, color: .gold)
+                    MetricLine(label: "Habitat", value: "43%", progress: 0.43, color: .violet)
+                    MetricLine(label: "Sensors", value: "61%", progress: 0.61, color: .cyan)
+                    MetricLine(label: "Reserve", value: "89%", progress: 0.89, color: .mint)
+                }
+                PowerFlowCanvas(phase: phase)
+                    .frame(width: 150)
             }
-            PowerFlowCanvas(phase: liveData.pulse)
-                .frame(width: 150)
         }
     }
 }
@@ -247,23 +250,24 @@ struct PowerFlowCanvas: View {
 }
 
 struct CommsTrafficWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        VStack(spacing: 10) {
-            ForEach(0..<5, id: \.self) { index in
-                HStack(spacing: 8) {
-                    Text(String(format: "%02d", index + 1))
-                        .font(theme.typography.data(size: 12))
-                        .foregroundStyle([theme.color(.cyan), theme.color(.gold), theme.color(.rose)][index % 3])
-                    Text(channel(index))
-                        .font(theme.typography.data(size: 13))
-                    Spacer()
-                    Text("\(Int((sin(liveData.pulse * .pi * 2 + Double(index)) * 0.5 + 0.5) * 90 + 10))%")
-                        .font(theme.typography.data(size: 13))
+        AnimationPhaseView(speed: 0.12) { phase in
+            VStack(spacing: 10) {
+                ForEach(0..<5, id: \.self) { index in
+                    HStack(spacing: 8) {
+                        Text(String(format: "%02d", index + 1))
+                            .font(theme.typography.data(size: 12))
+                            .foregroundStyle([theme.color(.cyan), theme.color(.gold), theme.color(.rose)][index % 3])
+                        Text(channel(index))
+                            .font(theme.typography.data(size: 13))
+                        Spacer()
+                        Text("\(Int((sin(phase * .pi * 2 + Double(index)) * 0.5 + 0.5) * 90 + 10))%")
+                            .font(theme.typography.data(size: 13))
+                    }
+                    SegmentedBar(progress: (0.35 + Double(index) * 0.1 + sin(phase * .pi * 2 + Double(index)) * 0.08).clamped(to: 0...1), color: [.cyan, .gold, .rose, .violet, .mint][index], segments: 16)
                 }
-                SegmentedBar(progress: (0.35 + Double(index) * 0.1 + sin(liveData.pulse * .pi * 2 + Double(index)) * 0.08).clamped(to: 0...1), color: [.cyan, .gold, .rose, .violet, .mint][index], segments: 16)
             }
         }
     }
@@ -274,7 +278,6 @@ struct CommsTrafficWidget: View {
 }
 
 struct AlertLogWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     private let alerts = [
@@ -287,21 +290,23 @@ struct AlertLogWidget: View {
     ]
 
     var body: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(alerts.enumerated()), id: \.offset) { index, alert in
-                HStack(spacing: 9) {
-                    Text(index == alerts.count - 1 ? "\(Int(liveData.pulse * 10))" : alert.0)
-                        .font(theme.typography.data(size: 12))
-                        .foregroundStyle(.black)
-                        .frame(width: 42, height: 24)
-                        .background(theme.color(alert.2), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
-                    Text(alert.1)
-                        .font(theme.typography.display(size: 14, weight: .bold))
-                        .lineLimit(1)
-                    Spacer()
+        AnimationPhaseView(speed: 0.10) { phase in
+            VStack(spacing: 8) {
+                ForEach(Array(alerts.enumerated()), id: \.offset) { index, alert in
+                    HStack(spacing: 9) {
+                        Text(index == alerts.count - 1 ? "\(Int(phase * 10))" : alert.0)
+                            .font(theme.typography.data(size: 12))
+                            .foregroundStyle(.black)
+                            .frame(width: 42, height: 24)
+                            .background(theme.color(alert.2), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+                        Text(alert.1)
+                            .font(theme.typography.display(size: 14, weight: .bold))
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(7)
+                    .background(theme.palette.panelHighlight.opacity(index == alerts.count - 1 ? 0.85 : 0.46), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
                 }
-                .padding(7)
-                .background(theme.palette.panelHighlight.opacity(index == alerts.count - 1 ? 0.85 : 0.46), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
             }
         }
     }

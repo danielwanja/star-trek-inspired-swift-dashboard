@@ -2,29 +2,132 @@ import SwiftUI
 
 struct DashboardRootView: View {
     @EnvironmentObject private var store: DashboardStore
-    @EnvironmentObject private var liveData: LiveDataHub
+    @State private var displayedDashboardID: UUID?
+    @State private var bootingDashboard: DashboardLayout?
+    @State private var isTransitionSettling = false
+    @State private var dashboardSwitchTask: Task<Void, Never>?
+    @State private var builderToggleTask: Task<Void, Never>?
 
     var body: some View {
         let theme = store.astraTheme
+        let displayedDashboard = dashboard(for: displayedDashboardID ?? store.selectedDashboardID)
+        let presentationDashboard = bootingDashboard ?? displayedDashboard
+        let widgetAnimationsPaused = store.isBuilderVisible || bootingDashboard != nil || isTransitionSettling
+
         ZStack {
             ConsoleBackground()
             VStack(spacing: theme.metrics.gap) {
-                CommandHeader()
+                CommandHeader(dashboard: presentationDashboard, onToggleBuilder: toggleBuilderPanel)
                 HStack(alignment: .top, spacing: theme.metrics.gap) {
-                    ConsoleSidebar()
-                    DashboardCanvas(dashboard: store.selectedDashboard)
+                    ConsoleSidebar(
+                        activeDashboardID: presentationDashboard.id,
+                        onSelectDashboard: beginDashboardSwitch
+                    )
+                    ZStack {
+                        if let bootingDashboard {
+                            DashboardBootSequence(dashboard: bootingDashboard)
+                                .id(bootingDashboard.id)
+                        } else {
+                            DashboardCanvas(
+                                dashboard: displayedDashboard,
+                                isBuilderVisible: store.isBuilderVisible,
+                                onResizeWidget: { widget, size in store.resizeWidget(widget, to: size) },
+                                onRemoveWidget: { widget in store.removeWidget(widget) }
+                            )
+                            .id(displayedDashboard.id)
+                        }
+                    }
                     if store.isBuilderVisible {
                         BuilderPanel()
                             .frame(width: 330)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
             }
             .padding(theme.metrics.outerPadding)
         }
         .environment(\.astraTheme, theme)
+        .environment(\.astraAnimationsPaused, widgetAnimationsPaused)
         .foregroundStyle(theme.palette.text)
         .preferredColorScheme(.dark)
+        .onAppear {
+            if displayedDashboardID == nil {
+                displayedDashboardID = store.selectedDashboardID
+            }
+        }
+        .onChange(of: store.selectedDashboardID) { _, newValue in
+            guard bootingDashboard == nil else { return }
+            displayedDashboardID = newValue
+        }
+        .onDisappear {
+            dashboardSwitchTask?.cancel()
+            builderToggleTask?.cancel()
+        }
+    }
+
+    private func dashboard(for id: UUID) -> DashboardLayout {
+        store.dashboard(with: id) ?? store.selectedDashboard
+    }
+
+    private func beginDashboardSwitch(to dashboard: DashboardLayout) {
+        let activeID = bootingDashboard?.id ?? displayedDashboardID ?? store.selectedDashboardID
+        guard dashboard.id != activeID else { return }
+
+        dashboardSwitchTask?.cancel()
+        builderToggleTask?.cancel()
+        bootingDashboard = dashboard
+        isTransitionSettling = true
+
+        dashboardSwitchTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(50))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            store.select(dashboard)
+            displayedDashboardID = dashboard.id
+
+            do {
+                try await Task.sleep(for: .milliseconds(120))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            bootingDashboard = nil
+
+            do {
+                try await Task.sleep(for: .milliseconds(180))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            isTransitionSettling = false
+        }
+    }
+
+    private func toggleBuilderPanel() {
+        builderToggleTask?.cancel()
+        isTransitionSettling = true
+
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            store.isBuilderVisible.toggle()
+        }
+
+        builderToggleTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(180))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+
+            isTransitionSettling = bootingDashboard != nil
+        }
     }
 }
 
@@ -105,19 +208,85 @@ struct GridTexture: View {
     }
 }
 
+struct DashboardBootSequence: View {
+    @Environment(\.astraTheme) private var theme
+    var dashboard: DashboardLayout
+
+    var body: some View {
+        AstraCFrame(
+            accent: dashboard.accentRole,
+            secondary: dashboard.secondaryRole,
+            topLabel: "LCARS TRANSFER",
+            bottomLabel: dashboard.deckCode,
+            railWidth: 150
+        ) {
+            TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
+                let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
+                VStack(alignment: .leading, spacing: theme.metrics.gap) {
+                    HStack(spacing: theme.metrics.fineGap) {
+                        HeaderChip(title: "ROUTING \(dashboard.deckCode)", color: dashboard.accentRole)
+                        HeaderChip(title: "BUFFER \(Int(phase * 9_999))", color: .gold)
+                        HeaderChip(title: "MEMORY SAFE", color: .mint)
+                        Spacer()
+                    }
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(dashboard.name.uppercased())
+                            .font(theme.typography.display(size: 34))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.62)
+                        Text("INITIALIZING COMMAND SURFACE")
+                            .font(theme.typography.data(size: 14))
+                            .foregroundStyle(theme.color(.gold))
+                        SegmentedBar(progress: 0.24 + phase * 0.76, color: dashboard.accentRole, segments: 28)
+                            .frame(maxWidth: 520)
+                    }
+
+                    HStack(spacing: theme.metrics.fineGap) {
+                        bootBlock(label: "SYS", value: "LINK", color: .cyan)
+                        bootBlock(label: "NAV", value: "AUTH", color: .violet)
+                        bootBlock(label: "OPS", value: "SYNC", color: .rose)
+                        bootBlock(label: "LCARS", value: "READY", color: .apricot)
+                    }
+
+                    Spacer()
+                }
+                .padding(theme.metrics.gap)
+            }
+        }
+    }
+
+    private func bootBlock(label: String, value: String, color: AstraColorRole) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(theme.typography.data(size: 12))
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(theme.color(color), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 5))
+            Text(value)
+                .font(theme.typography.display(size: 18))
+        }
+        .frame(maxWidth: 150, alignment: .leading)
+    }
+}
+
 struct CommandHeader: View {
     @EnvironmentObject private var store: DashboardStore
     @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
+    var dashboard: DashboardLayout
+    var onToggleBuilder: () -> Void
 
     var body: some View {
         HStack(spacing: theme.metrics.gap) {
-            ConsoleElbow(color: store.selectedDashboard.accentRole, compact: false)
+            ConsoleElbow(color: dashboard.accentRole, compact: false)
             VStack(alignment: .leading, spacing: 2) {
-                Text("USS ASTRA · \(store.selectedDashboard.deckCode)")
+                Text("USS ASTRA · \(dashboard.deckCode)")
                     .font(theme.typography.display(size: 24))
                     .tracking(1.2)
-                Text(store.selectedDashboard.subtitle.uppercased())
+                Text(dashboard.subtitle.uppercased())
                     .font(theme.typography.systemData(size: 12, weight: .semibold))
                     .foregroundStyle(theme.palette.mutedText)
             }
@@ -136,9 +305,7 @@ struct CommandHeader: View {
             .buttonStyle(.plain)
             .help("Cycle Astra console theme")
             Button {
-                withAnimation(.snappy(duration: 0.22)) {
-                    store.isBuilderVisible.toggle()
-                }
+                onToggleBuilder()
             } label: {
                 Text(store.isBuilderVisible ? "EDIT ON" : "EDIT")
                     .frame(width: 66, height: 34)
@@ -433,6 +600,8 @@ struct ThemeSelectorPanel: View {
 struct ConsoleSidebar: View {
     @EnvironmentObject private var store: DashboardStore
     @Environment(\.astraTheme) private var theme
+    var activeDashboardID: UUID
+    var onSelectDashboard: (DashboardLayout) -> Void
 
     var body: some View {
         VStack(spacing: theme.metrics.gap) {
@@ -444,7 +613,7 @@ struct ConsoleSidebar: View {
             VStack(spacing: theme.metrics.fineGap + 3) {
                 ForEach(store.dashboards) { dashboard in
                     Button {
-                        store.select(dashboard)
+                        onSelectDashboard(dashboard)
                     } label: {
                         HStack(spacing: 8) {
                             Text(dashboard.deckCode)
@@ -452,7 +621,7 @@ struct ConsoleSidebar: View {
                                 .foregroundStyle(.black)
                                 .frame(width: 52, height: 24)
                                 .background(
-                                    dashboard.id == store.selectedDashboardID
+                                    dashboard.id == activeDashboardID
                                     ? theme.color(.mint)
                                     : theme.color(dashboard.accentRole).opacity(0.82),
                                     in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4)
@@ -467,17 +636,17 @@ struct ConsoleSidebar: View {
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 4)
-                                .background(dashboard.id == store.selectedDashboardID ? theme.color(.gold) : theme.palette.mutedText.opacity(0.46), in: Capsule())
+                                .background(dashboard.id == activeDashboardID ? theme.color(.gold) : theme.palette.mutedText.opacity(0.46), in: Capsule())
                         }
                         .padding(.horizontal, 12)
                         .frame(height: 42)
                         .background(
-                            dashboard.id == store.selectedDashboardID
+                            dashboard.id == activeDashboardID
                             ? theme.color(dashboard.accentRole).opacity(0.95)
                             : theme.palette.panelHighlight.opacity(0.72),
                             in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6)
                         )
-                        .foregroundStyle(dashboard.id == store.selectedDashboardID ? .black : theme.palette.text.opacity(0.78))
+                        .foregroundStyle(dashboard.id == activeDashboardID ? .black : theme.palette.text.opacity(0.78))
                     }
                     .buttonStyle(.plain)
                 }
@@ -525,9 +694,11 @@ struct ConsoleSidebar: View {
 }
 
 struct DashboardCanvas: View {
-    @EnvironmentObject private var store: DashboardStore
     @Environment(\.astraTheme) private var theme
     var dashboard: DashboardLayout
+    var isBuilderVisible: Bool
+    var onResizeWidget: (DashboardWidget, WidgetSize) -> Void
+    var onRemoveWidget: (DashboardWidget) -> Void
 
     private var rows: [[DashboardWidget]] {
         packWidgets(dashboard.widgets, columns: 4)
@@ -546,7 +717,12 @@ struct DashboardCanvas: View {
                     ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                         GridRow {
                             ForEach(row) { widget in
-                                DashboardWidgetCard(widget: widget)
+                                DashboardWidgetCard(
+                                    widget: widget,
+                                    isBuilderVisible: isBuilderVisible,
+                                    onResizeWidget: onResizeWidget,
+                                    onRemoveWidget: onRemoveWidget
+                                )
                                     .gridCellColumns(min(4, widget.size.columns))
                             }
                             let used = row.reduce(0) { $0 + min(4, $1.size.columns) }
@@ -590,10 +766,11 @@ struct DashboardCanvas: View {
 }
 
 struct DashboardWidgetCard: View {
-    @EnvironmentObject private var store: DashboardStore
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
     var widget: DashboardWidget
+    var isBuilderVisible: Bool
+    var onResizeWidget: (DashboardWidget, WidgetSize) -> Void
+    var onRemoveWidget: (DashboardWidget) -> Void
 
     var body: some View {
         HStack(spacing: theme.metrics.fineGap) {
@@ -608,7 +785,12 @@ struct DashboardWidgetCard: View {
             .frame(width: 9)
 
             VStack(spacing: 0) {
-                WidgetHeader(widget: widget)
+                WidgetHeader(
+                    widget: widget,
+                    isBuilderVisible: isBuilderVisible,
+                    onResizeWidget: onResizeWidget,
+                    onRemoveWidget: onRemoveWidget
+                )
                 AstraRailStrip(accent: widget.kind.group.accent, secondary: .gold, label: widget.kind.panelCode, flipped: true)
                     .frame(height: 18)
                     .padding(.horizontal, 10)
@@ -668,9 +850,11 @@ struct DashboardWidgetCard: View {
 }
 
 struct WidgetHeader: View {
-    @EnvironmentObject private var store: DashboardStore
     @Environment(\.astraTheme) private var theme
     var widget: DashboardWidget
+    var isBuilderVisible: Bool
+    var onResizeWidget: (DashboardWidget, WidgetSize) -> Void
+    var onRemoveWidget: (DashboardWidget) -> Void
 
     var body: some View {
         HStack(spacing: theme.metrics.fineGap + 3) {
@@ -694,11 +878,11 @@ struct WidgetHeader: View {
 
             Spacer()
 
-            if store.isBuilderVisible {
+            if isBuilderVisible {
                 Menu {
                     ForEach(WidgetSize.allCases) { size in
                         Button(size.title) {
-                            store.resizeWidget(widget, to: size)
+                            onResizeWidget(widget, size)
                         }
                     }
                 } label: {
@@ -710,7 +894,7 @@ struct WidgetHeader: View {
                 .help("Resize widget")
 
                 Button {
-                    store.removeWidget(widget)
+                    onRemoveWidget(widget)
                 } label: {
                     Text("DEL")
                         .frame(width: 38, height: 28)

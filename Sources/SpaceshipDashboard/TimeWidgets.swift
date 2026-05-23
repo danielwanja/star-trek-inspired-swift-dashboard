@@ -1,17 +1,19 @@
 import SwiftUI
 
 struct EpochMillisWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("\(Int64(liveData.now.timeIntervalSince1970 * 1000))")
-                .font(theme.typography.data(size: 27))
-                .lineLimit(1)
-                .minimumScaleFactor(0.45)
-            MetricLine(label: "Seconds", value: "\(Int64(liveData.now.timeIntervalSince1970))", progress: liveData.now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60, color: .violet)
-            MetricLine(label: "Frame", value: String(format: "%04d", Int(liveData.pulse * 10_000)), progress: liveData.pulse, color: .cyan)
+        ConsoleTimelineView { now in
+            let frame = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(Int64(now.timeIntervalSince1970 * 1000))")
+                    .font(theme.typography.data(size: 27))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.45)
+                MetricLine(label: "Seconds", value: "\(Int64(now.timeIntervalSince1970))", progress: now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60, color: .violet)
+                MetricLine(label: "Frame", value: String(format: "%04d", Int(frame * 10_000)), progress: frame, color: .cyan)
+            }
         }
     }
 }
@@ -52,27 +54,27 @@ struct TimeRow: View {
 }
 
 struct AnalogClockWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        let date = liveData.now
-        Canvas { context, size in
-            let side = min(size.width, size.height)
-            let rect = CGRect(x: (size.width - side) / 2, y: (size.height - side) / 2, width: side, height: side)
-            let center = CGPoint(x: rect.midX, y: rect.midY)
-            let radius = side * 0.44
+        ConsoleTimelineView { date in
+            Canvas { context, size in
+                let side = min(size.width, size.height)
+                let rect = CGRect(x: (size.width - side) / 2, y: (size.height - side) / 2, width: side, height: side)
+                let center = CGPoint(x: rect.midX, y: rect.midY)
+                let radius = side * 0.44
 
-            drawFace(context: context, rect: rect, side: side, center: center, radius: radius)
+                drawFace(context: context, rect: rect, side: side, center: center, radius: radius)
 
-            let components = Calendar.current.dateComponents([.hour, .minute, .second, .nanosecond], from: date)
-            let seconds = Double(components.second ?? 0) + Double(components.nanosecond ?? 0) / 1_000_000_000
-            let minutes = Double(components.minute ?? 0) + seconds / 60
-            let hours = Double(components.hour ?? 0).truncatingRemainder(dividingBy: 12) + minutes / 60
-            drawHand(context: context, center: center, angle: seconds / 60, length: radius * 0.86, color: theme.color(.cyan), width: 2)
-            drawHand(context: context, center: center, angle: minutes / 60, length: radius * 0.72, color: theme.color(.apricot), width: 4)
-            drawHand(context: context, center: center, angle: hours / 12, length: radius * 0.52, color: theme.color(.violet), width: 6)
-            context.fill(Path(ellipseIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)), with: .color(theme.palette.text))
+                let components = Calendar.current.dateComponents([.hour, .minute, .second, .nanosecond], from: date)
+                let seconds = Double(components.second ?? 0) + Double(components.nanosecond ?? 0) / 1_000_000_000
+                let minutes = Double(components.minute ?? 0) + seconds / 60
+                let hours = Double(components.hour ?? 0).truncatingRemainder(dividingBy: 12) + minutes / 60
+                drawHand(context: context, center: center, angle: seconds / 60, length: radius * 0.86, color: theme.color(.cyan), width: 2)
+                drawHand(context: context, center: center, angle: minutes / 60, length: radius * 0.72, color: theme.color(.apricot), width: 4)
+                drawHand(context: context, center: center, angle: hours / 12, length: radius * 0.52, color: theme.color(.violet), width: 6)
+                context.fill(Path(ellipseIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)), with: .color(theme.palette.text))
+            }
         }
     }
 
@@ -176,19 +178,20 @@ struct WorldClockWidget: View {
 }
 
 struct CountdownWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        let target = nextTopOfHour(after: liveData.now)
-        let remaining = max(0, target.timeIntervalSince(liveData.now))
-        VStack(alignment: .leading, spacing: 12) {
-            Text(timecode(remaining))
-                .font(theme.typography.data(size: 34))
-                .lineLimit(1)
-                .minimumScaleFactor(0.55)
-            MetricLine(label: "Next mark", value: Formatters.clock(target), progress: 1 - remaining / 3600, color: .rose)
-            SegmentedBar(progress: 1 - remaining / 3600, color: .gold, segments: 24)
+        ConsoleTimelineView { date in
+            let target = nextTopOfHour(after: date)
+            let remaining = max(0, target.timeIntervalSince(date))
+            VStack(alignment: .leading, spacing: 12) {
+                Text(timecode(remaining))
+                    .font(theme.typography.data(size: 34))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                MetricLine(label: "Next mark", value: Formatters.clock(target), progress: 1 - remaining / 3600, color: .rose)
+                SegmentedBar(progress: 1 - remaining / 3600, color: .gold, segments: 24)
+            }
         }
     }
 

@@ -1,19 +1,20 @@
 import SwiftUI
 
 struct GalaxyWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        GalaxyScene(phase: liveData.pulse)
-            .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
-            .overlay(alignment: .bottomLeading) {
-                HStack(spacing: 8) {
-                    HeaderChip(title: "SECTOR 7-ALPHA", color: .cyan)
-                    HeaderChip(title: "PARALLAX \(Int(liveData.pulse * 360))", color: .violet)
+        AnimationPhaseView(speed: 0.06) { phase in
+            GalaxyScene(phase: phase)
+                .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+                .overlay(alignment: .bottomLeading) {
+                    HStack(spacing: 8) {
+                        HeaderChip(title: "SECTOR 7-ALPHA", color: .cyan)
+                        HeaderChip(title: "PARALLAX \(Int(phase * 360))", color: .violet)
+                    }
+                    .padding(12)
                 }
-                .padding(12)
-            }
+        }
     }
 }
 
@@ -61,15 +62,15 @@ struct GalaxyScene: View {
 }
 
 struct PlanetOrbitWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
-
     var body: some View {
-        VStack(spacing: 10) {
-            OrbitCanvas(phase: liveData.pulse)
-            HStack(spacing: 8) {
-                MicroStat(label: "ORBIT", value: "\(Int(liveData.pulse * 360)) DEG", color: .cyan)
-                MicroStat(label: "BODY", value: "5 LOCKED", color: .gold)
-                MicroStat(label: "DRIFT", value: "0.04 AU", color: .violet)
+        AnimationPhaseView(speed: 0.08) { phase in
+            VStack(spacing: 10) {
+                OrbitCanvas(phase: phase)
+                HStack(spacing: 8) {
+                    MicroStat(label: "ORBIT", value: "\(Int(phase * 360)) DEG", color: .cyan)
+                    MicroStat(label: "BODY", value: "5 LOCKED", color: .gold)
+                    MicroStat(label: "DRIFT", value: "0.04 AU", color: .violet)
+                }
             }
         }
     }
@@ -108,13 +109,13 @@ struct OrbitCanvas: View {
 }
 
 struct StarMapWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
-
     var body: some View {
-        VStack(spacing: 10) {
-            StarMapCanvas(phase: liveData.pulse)
-                .frame(minHeight: 190)
-            MetricLine(label: "Route", value: "AR-42 / DELTA", progress: 0.72, color: .cyan)
+        AnimationPhaseView(speed: 0.12) { phase in
+            VStack(spacing: 10) {
+                StarMapCanvas(phase: phase)
+                    .frame(minHeight: 190)
+                MetricLine(label: "Route", value: "AR-42 / DELTA", progress: 0.72, color: .cyan)
+            }
         }
     }
 }
@@ -164,13 +165,13 @@ struct StarMapCanvas: View {
 }
 
 struct TacticalSweepWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
-
     var body: some View {
-        VStack(spacing: 12) {
-            TacticalSweepCanvas(phase: liveData.pulse)
-                .frame(minHeight: 210)
-            MetricLine(label: "Contacts", value: "\(12 + Int(liveData.pulse * 5))", progress: 0.64, color: .mint)
+        AnimationPhaseView(speed: 0.16) { phase in
+            VStack(spacing: 12) {
+                TacticalSweepCanvas(phase: phase)
+                    .frame(minHeight: 210)
+                MetricLine(label: "Contacts", value: "\(12 + Int(phase * 5))", progress: 0.64, color: .mint)
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-struct SystemTelemetry: Equatable {
+struct SystemTelemetry: Equatable, Sendable {
     var cpuUsage: Double
     var cpuCoreUsage: [Double]
     var memoryUsed: Double
@@ -28,6 +28,16 @@ struct SystemTelemetry: Equatable {
         temperature: 48,
         processThreads: 18,
         processMemory: 180_000_000
+    )
+}
+
+struct LiveDataSnapshot: Equatable, Sendable {
+    var now: Date
+    var telemetry: SystemTelemetry
+
+    static let placeholder = LiveDataSnapshot(
+        now: Date(),
+        telemetry: .placeholder
     )
 }
 
@@ -266,33 +276,50 @@ private extension UInt64 {
     }
 }
 
+actor SystemTelemetrySampler {
+    private let sampler = SystemSampler()
+
+    func sample() -> SystemTelemetry {
+        sampler.sample()
+    }
+}
+
 @MainActor
 final class LiveDataHub: ObservableObject {
-    @Published var now = Date()
-    @Published var telemetry = SystemTelemetry.placeholder
-    @Published var pulse: Double = 0
+    @Published private var snapshot = LiveDataSnapshot.placeholder
 
-    private let sampler = SystemSampler()
-    private var timer: Timer?
+    private let sampler = SystemTelemetrySampler()
+    private var telemetryTask: Task<Void, Never>?
+
+    var now: Date {
+        snapshot.now
+    }
+
+    var telemetry: SystemTelemetry {
+        snapshot.telemetry
+    }
 
     func start() {
-        guard timer == nil else { return }
-        telemetry = sampler.sample()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tick()
+        guard telemetryTask == nil else { return }
+        telemetryTask = Task { @concurrent [sampler] in
+            while !Task.isCancelled {
+                let telemetry = await sampler.sample()
+                let snapshot = LiveDataSnapshot(now: Date(), telemetry: telemetry)
+                await MainActor.run { [weak self] in
+                    self?.snapshot = snapshot
+                }
+
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    break
+                }
             }
         }
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func tick() {
-        now = Date()
-        pulse = (pulse + 0.025).truncatingRemainder(dividingBy: 1)
-        telemetry = sampler.sample()
+        telemetryTask?.cancel()
+        telemetryTask = nil
     }
 }
