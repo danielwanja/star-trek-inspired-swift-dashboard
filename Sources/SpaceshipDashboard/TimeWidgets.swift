@@ -2,11 +2,12 @@ import SwiftUI
 
 struct EpochMillisWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("\(Int64(liveData.now.timeIntervalSince1970 * 1000))")
-                .font(.system(size: 27, weight: .black, design: .monospaced))
+                .font(theme.typography.data(size: 27))
                 .lineLimit(1)
                 .minimumScaleFactor(0.45)
             MetricLine(label: "Seconds", value: "\(Int64(liveData.now.timeIntervalSince1970))", progress: liveData.now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60, color: .violet)
@@ -29,19 +30,20 @@ struct TimeFormatsWidget: View {
 }
 
 struct TimeRow: View {
+    @Environment(\.astraTheme) private var theme
     var label: String
     var value: String
 
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .font(theme.typography.data(size: 12))
                 .foregroundStyle(.black)
                 .frame(width: 52)
                 .padding(.vertical, 5)
-                .background(ConsoleColor.violet.color, in: Capsule())
+                .background(theme.color(.violet), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
             Text(value)
-                .font(.system(size: 13, weight: .black, design: .monospaced))
+                .font(theme.typography.data(size: 14))
                 .lineLimit(1)
                 .minimumScaleFactor(0.48)
             Spacer(minLength: 0)
@@ -51,6 +53,7 @@ struct TimeRow: View {
 
 struct AnalogClockWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         let date = liveData.now
@@ -66,16 +69,16 @@ struct AnalogClockWidget: View {
             let seconds = Double(components.second ?? 0) + Double(components.nanosecond ?? 0) / 1_000_000_000
             let minutes = Double(components.minute ?? 0) + seconds / 60
             let hours = Double(components.hour ?? 0).truncatingRemainder(dividingBy: 12) + minutes / 60
-            drawHand(context: context, center: center, angle: seconds / 60, length: radius * 0.86, color: ConsoleColor.cyan.color, width: 2)
-            drawHand(context: context, center: center, angle: minutes / 60, length: radius * 0.72, color: ConsoleColor.apricot.color, width: 4)
-            drawHand(context: context, center: center, angle: hours / 12, length: radius * 0.52, color: ConsoleColor.violet.color, width: 6)
-            context.fill(Path(ellipseIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)), with: .color(.white))
+            drawHand(context: context, center: center, angle: seconds / 60, length: radius * 0.86, color: theme.color(.cyan), width: 2)
+            drawHand(context: context, center: center, angle: minutes / 60, length: radius * 0.72, color: theme.color(.apricot), width: 4)
+            drawHand(context: context, center: center, angle: hours / 12, length: radius * 0.52, color: theme.color(.violet), width: 6)
+            context.fill(Path(ellipseIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)), with: .color(theme.palette.text))
         }
     }
 
     private func drawFace(context: GraphicsContext, rect: CGRect, side: CGFloat, center: CGPoint, radius: CGFloat) {
         let face = Path(ellipseIn: rect.insetBy(dx: side * 0.06, dy: side * 0.06))
-        context.stroke(face, with: .color(ConsoleColor.gold.color), lineWidth: 4)
+        context.stroke(face, with: .color(theme.color(.gold)), lineWidth: 4)
 
         for mark in 0..<60 {
             let angle = Double(mark) / 60 * .pi * 2 - .pi / 2
@@ -86,7 +89,7 @@ struct AnalogClockWidget: View {
             var path = Path()
             path.move(to: innerPoint)
             path.addLine(to: outerPoint)
-            let markColor = mark.isMultiple(of: 5) ? ConsoleColor.rose.color : Color.white.opacity(0.35)
+            let markColor = mark.isMultiple(of: 5) ? theme.color(.rose) : theme.palette.text.opacity(0.35)
             context.stroke(path, with: .color(markColor), lineWidth: mark.isMultiple(of: 5) ? 3 : 1)
         }
     }
@@ -103,6 +106,7 @@ struct AnalogClockWidget: View {
 
 struct CalendarWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     private var daySymbols: [String] {
         Calendar.current.shortWeekdaySymbols.map { String($0.prefix(1)) }
@@ -111,13 +115,13 @@ struct CalendarWidget: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(Formatters.month(liveData.now).uppercased())
-                .font(.system(size: 18, weight: .black, design: .rounded))
+                .font(theme.typography.display(size: 18))
             Grid(horizontalSpacing: 5, verticalSpacing: 5) {
                 GridRow {
                     ForEach(daySymbols, id: \.self) { symbol in
                         Text(symbol)
-                            .font(.system(size: 10, weight: .black, design: .monospaced))
-                            .foregroundStyle(ConsoleColor.gold.color)
+                            .font(theme.typography.data(size: 12))
+                            .foregroundStyle(theme.color(.gold))
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -125,10 +129,10 @@ struct CalendarWidget: View {
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, value in
                             Text(value == 0 ? "" : "\(value)")
-                                .font(.system(size: 12, weight: value == Calendar.current.component(.day, from: liveData.now) ? .black : .bold, design: .rounded))
-                                .foregroundStyle(value == Calendar.current.component(.day, from: liveData.now) ? .black : .white.opacity(value == 0 ? 0 : 0.82))
+                                .font(theme.typography.display(size: 14, weight: value == Calendar.current.component(.day, from: liveData.now) ? .black : .bold))
+                                .foregroundStyle(value == Calendar.current.component(.day, from: liveData.now) ? .black : theme.palette.text.opacity(value == 0 ? 0 : 0.82))
                                 .frame(maxWidth: .infinity, minHeight: 28)
-                                .background(value == Calendar.current.component(.day, from: liveData.now) ? ConsoleColor.apricot.color : Color.white.opacity(value == 0 ? 0 : 0.06), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                .background(value == Calendar.current.component(.day, from: liveData.now) ? theme.color(.apricot) : theme.palette.text.opacity(value == 0 ? 0 : 0.06), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
                         }
                     }
                 }
@@ -173,13 +177,14 @@ struct WorldClockWidget: View {
 
 struct CountdownWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         let target = nextTopOfHour(after: liveData.now)
         let remaining = max(0, target.timeIntervalSince(liveData.now))
         VStack(alignment: .leading, spacing: 12) {
             Text(timecode(remaining))
-                .font(.system(size: 34, weight: .black, design: .monospaced))
+                .font(theme.typography.data(size: 34))
                 .lineLimit(1)
                 .minimumScaleFactor(0.55)
             MetricLine(label: "Next mark", value: Formatters.clock(target), progress: 1 - remaining / 3600, color: .rose)
@@ -205,7 +210,7 @@ struct CountdownWidget: View {
 struct ProgressBarsWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
 
-    private let rows: [(String, ConsoleColor, Double)] = [
+    private let rows: [(String, AstraColorRole, Double)] = [
         ("VECTOR LOCK", .cyan, 0.67),
         ("WARP INDEX", .gold, 0.41),
         ("BAY SEAL", .mint, 0.91),

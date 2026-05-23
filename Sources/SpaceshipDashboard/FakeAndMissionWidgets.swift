@@ -4,11 +4,11 @@ struct FakeTelemetryWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
 
     private let rows = [
-        ("EPSILON BAND", ConsoleColor.cyan, 0.71),
-        ("SUBSPACE FOAM", ConsoleColor.violet, 0.48),
-        ("MAG LOCK RATIO", ConsoleColor.gold, 0.83),
-        ("HARMONIC SHEAR", ConsoleColor.rose, 0.39),
-        ("VECTOR GAIN", ConsoleColor.mint, 0.62)
+        ("EPSILON BAND", AstraColorRole.cyan, 0.71),
+        ("SUBSPACE FOAM", AstraColorRole.violet, 0.48),
+        ("MAG LOCK RATIO", AstraColorRole.gold, 0.83),
+        ("HARMONIC SHEAR", AstraColorRole.rose, 0.39),
+        ("VECTOR GAIN", AstraColorRole.mint, 0.62)
     ]
 
     var body: some View {
@@ -27,11 +27,12 @@ struct FakeTelemetryWidget: View {
 
 struct DataMatrixWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         GeometryReader { proxy in
-            let columns = 8
-            let rows = 12
+            let columns = 6
+            let rows = 8
             let gap: CGFloat = 4
             let cellWidth = (proxy.size.width - CGFloat(columns - 1) * gap) / CGFloat(columns)
             let cellHeight = (proxy.size.height - CGFloat(rows - 1) * gap) / CGFloat(rows)
@@ -43,10 +44,10 @@ struct DataMatrixWidget: View {
                             let index = row * columns + column
                             let lit = ((index + Int(liveData.pulse * 100)) % 7) < 3
                             Text(token(index))
-                                .font(.system(size: 8, weight: .black, design: .monospaced))
-                                .foregroundStyle(lit ? .black : .white.opacity(0.35))
+                                .font(theme.typography.data(size: 12))
+                                .foregroundStyle(lit ? .black : theme.palette.text.opacity(0.35))
                                 .frame(width: cellWidth, height: cellHeight)
-                                .background(lit ? color(index).opacity(0.95) : Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 3, style: .continuous))
+                                .background(lit ? color(index).opacity(0.95) : theme.palette.text.opacity(0.055), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
                         }
                     }
                 }
@@ -60,12 +61,13 @@ struct DataMatrixWidget: View {
     }
 
     private func color(_ index: Int) -> Color {
-        [ConsoleColor.cyan.color, ConsoleColor.gold.color, ConsoleColor.rose.color, ConsoleColor.violet.color][index % 4]
+        [theme.color(.cyan), theme.color(.gold), theme.color(.rose), theme.color(.violet)][index % 4]
     }
 }
 
 struct FakeDiagnosticsWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     private let checks = [
         "PRIMARY LATTICE",
@@ -81,11 +83,11 @@ struct FakeDiagnosticsWidget: View {
             ForEach(Array(checks.enumerated()), id: \.element) { index, check in
                 HStack(spacing: 8) {
                     Text(check)
-                        .font(.system(size: 11, weight: .black, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.78))
+                        .font(theme.typography.data(size: 13))
+                        .foregroundStyle(theme.palette.text.opacity(0.78))
                     Spacer()
                     Text(status(index))
-                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .font(theme.typography.data(size: 12))
                         .foregroundStyle(.black)
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
@@ -104,28 +106,29 @@ struct FakeDiagnosticsWidget: View {
         progress(index) > 0.72 ? "SYNC" : progress(index) > 0.48 ? "SCAN" : "WAIT"
     }
 
-    private func color(_ index: Int) -> ConsoleColor {
+    private func color(_ index: Int) -> AstraColorRole {
         [.cyan, .violet, .gold, .mint, .rose, .apricot][index % 6]
     }
 
     private func statusColor(_ index: Int) -> Color {
-        color(index).color
+        theme.color(color(index))
     }
 }
 
 struct MissionStatusWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 9) {
                 Text("COMMAND DECK")
-                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .font(theme.typography.display(size: 30))
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
                 Text("PRIMARY OPERATIONS \(Int(liveData.pulse * 9999))")
-                    .font(.system(size: 11, weight: .black, design: .monospaced))
-                    .foregroundStyle(ConsoleColor.gold.color)
+                    .font(theme.typography.data(size: 13))
+                    .foregroundStyle(theme.color(.gold))
                 MetricLine(label: "Mission Index", value: "GREEN", progress: 0.82, color: .mint)
                 MetricLine(label: "Crew Link", value: "96%", progress: 0.96, color: .cyan)
             }
@@ -137,11 +140,11 @@ struct MissionStatusWidget: View {
 
 struct CrewReadinessWidget: View {
     private let crew = [
-        ("BRIDGE", 0.96, ConsoleColor.gold),
-        ("ENG", 0.88, ConsoleColor.apricot),
-        ("SCI", 0.91, ConsoleColor.cyan),
-        ("MED", 0.79, ConsoleColor.mint),
-        ("FLIGHT", 0.84, ConsoleColor.violet)
+        ("BRIDGE", 0.96, AstraColorRole.gold),
+        ("ENG", 0.88, AstraColorRole.apricot),
+        ("SCI", 0.91, AstraColorRole.cyan),
+        ("MED", 0.79, AstraColorRole.mint),
+        ("FLIGHT", 0.84, AstraColorRole.violet)
     ]
 
     var body: some View {
@@ -170,18 +173,19 @@ struct ShieldGridWidget: View {
 }
 
 struct ShieldCanvas: View {
+    @Environment(\.astraTheme) private var theme
     var phase: Double
 
     var body: some View {
         Canvas { context, size in
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
             let hull = CGRect(x: center.x - 28, y: center.y - 16, width: 56, height: 32)
-            context.fill(Path(roundedRect: hull, cornerRadius: 16), with: .color(ConsoleColor.apricot.color))
+            context.fill(Path(roundedRect: hull, cornerRadius: 16), with: .color(theme.color(.apricot)))
 
             for index in 0..<4 {
                 let inset = CGFloat(index) * 12 + CGFloat(sin(phase * .pi * 2 + Double(index)) * 2)
                 let rect = CGRect(x: 10 + inset, y: 6 + inset * 0.2, width: size.width - 20 - inset * 2, height: size.height - 12 - inset * 0.4)
-                context.stroke(Path(ellipseIn: rect), with: .color([ConsoleColor.cyan.color, ConsoleColor.violet.color, ConsoleColor.gold.color, ConsoleColor.mint.color][index].opacity(0.6)), lineWidth: 2)
+                context.stroke(Path(ellipseIn: rect), with: .color([theme.color(.cyan), theme.color(.violet), theme.color(.gold), theme.color(.mint)][index].opacity(0.6)), lineWidth: 2)
             }
         }
     }
@@ -216,6 +220,7 @@ struct PowerDistributionWidget: View {
 }
 
 struct PowerFlowCanvas: View {
+    @Environment(\.astraTheme) private var theme
     var phase: Double
 
     var body: some View {
@@ -231,11 +236,11 @@ struct PowerFlowCanvas: View {
                 var path = Path()
                 path.move(to: nodes[connection.0])
                 path.addLine(to: nodes[connection.1])
-                context.stroke(path, with: .color(ConsoleColor.gold.color.opacity(0.32)), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [6, 8], dashPhase: phase * 40))
+                context.stroke(path, with: .color(theme.color(.gold).opacity(0.32)), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [6, 8], dashPhase: phase * 40))
             }
             for (index, node) in nodes.enumerated() {
                 let radius: CGFloat = index == 0 ? 18 : 13
-                context.fill(Path(ellipseIn: CGRect(x: node.x - radius, y: node.y - radius, width: radius * 2, height: radius * 2)), with: .color([ConsoleColor.gold.color, ConsoleColor.cyan.color, ConsoleColor.violet.color, ConsoleColor.mint.color][index]))
+                context.fill(Path(ellipseIn: CGRect(x: node.x - radius, y: node.y - radius, width: radius * 2, height: radius * 2)), with: .color([theme.color(.gold), theme.color(.cyan), theme.color(.violet), theme.color(.mint)][index]))
             }
         }
     }
@@ -243,18 +248,20 @@ struct PowerFlowCanvas: View {
 
 struct CommsTrafficWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         VStack(spacing: 10) {
             ForEach(0..<5, id: \.self) { index in
                 HStack(spacing: 8) {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
-                        .foregroundStyle([ConsoleColor.cyan.color, ConsoleColor.gold.color, ConsoleColor.rose.color][index % 3])
+                    Text(String(format: "%02d", index + 1))
+                        .font(theme.typography.data(size: 12))
+                        .foregroundStyle([theme.color(.cyan), theme.color(.gold), theme.color(.rose)][index % 3])
                     Text(channel(index))
-                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                        .font(theme.typography.data(size: 13))
                     Spacer()
                     Text("\(Int((sin(liveData.pulse * .pi * 2 + Double(index)) * 0.5 + 0.5) * 90 + 10))%")
-                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                        .font(theme.typography.data(size: 13))
                 }
                 SegmentedBar(progress: (0.35 + Double(index) * 0.1 + sin(liveData.pulse * .pi * 2 + Double(index)) * 0.08).clamped(to: 0...1), color: [.cyan, .gold, .rose, .violet, .mint][index], segments: 16)
             }
@@ -268,14 +275,15 @@ struct CommsTrafficWidget: View {
 
 struct AlertLogWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     private let alerts = [
-        ("00:12", "Navigation matrix refreshed", ConsoleColor.cyan),
-        ("00:09", "Deck three scan complete", ConsoleColor.gold),
-        ("00:07", "Aft relay rerouted", ConsoleColor.violet),
-        ("00:05", "Crew sync nominal", ConsoleColor.mint),
-        ("00:03", "Exterior sensor sweep", ConsoleColor.apricot),
-        ("NOW", "Command surface active", ConsoleColor.rose)
+        ("00:12", "Navigation matrix refreshed", AstraColorRole.cyan),
+        ("00:09", "Deck three scan complete", AstraColorRole.gold),
+        ("00:07", "Aft relay rerouted", AstraColorRole.violet),
+        ("00:05", "Crew sync nominal", AstraColorRole.mint),
+        ("00:03", "Exterior sensor sweep", AstraColorRole.apricot),
+        ("NOW", "Command surface active", AstraColorRole.rose)
     ]
 
     var body: some View {
@@ -283,17 +291,17 @@ struct AlertLogWidget: View {
             ForEach(Array(alerts.enumerated()), id: \.offset) { index, alert in
                 HStack(spacing: 9) {
                     Text(index == alerts.count - 1 ? "\(Int(liveData.pulse * 10))" : alert.0)
-                        .font(.system(size: 9, weight: .black, design: .monospaced))
+                        .font(theme.typography.data(size: 12))
                         .foregroundStyle(.black)
                         .frame(width: 42, height: 24)
-                        .background(alert.2.color, in: Capsule())
+                        .background(theme.color(alert.2), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
                     Text(alert.1)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(theme.typography.display(size: 14, weight: .bold))
                         .lineLimit(1)
                     Spacer()
                 }
                 .padding(7)
-                .background(.white.opacity(index == alerts.count - 1 ? 0.10 : 0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(theme.palette.panelHighlight.opacity(index == alerts.count - 1 ? 0.85 : 0.46), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
             }
         }
     }

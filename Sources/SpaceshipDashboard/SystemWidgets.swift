@@ -85,19 +85,20 @@ struct DiskWidget: View {
 
 struct TemperatureWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         VStack(spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text("\(Int(liveData.telemetry.temperature.rounded()))")
-                    .font(.system(size: 42, weight: .black, design: .rounded))
+                    .font(theme.typography.display(size: 42))
                 Text("C")
-                    .font(.system(size: 18, weight: .black, design: .monospaced))
-                    .foregroundStyle(ConsoleColor.gold.color)
+                    .font(theme.typography.data(size: 18))
+                    .foregroundStyle(theme.color(.gold))
                 Spacer()
-                Image(systemName: "thermometer.medium")
-                    .font(.system(size: 28, weight: .black))
-                    .foregroundStyle(ConsoleColor.rose.color)
+                Text("TMP")
+                    .font(theme.typography.data(size: 16))
+                    .foregroundStyle(theme.color(.rose))
             }
             let normalized = ((liveData.telemetry.temperature - 28) / 55).clamped(to: 0...1)
             MetricLine(label: "Thermal", value: thermalLabel(liveData.telemetry.temperature), progress: normalized, color: normalized > 0.68 ? .rose : .gold)
@@ -138,20 +139,21 @@ struct ProcessPulseWidget: View {
 }
 
 struct MicroStat: View {
+    @Environment(\.astraTheme) private var theme
     var label: String
     var value: String
-    var color: ConsoleColor = .apricot
+    var color: AstraColorRole = .apricot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label.uppercased())
-                .font(.system(size: 9, weight: .black, design: .monospaced))
+                .font(theme.typography.data(size: 12))
                 .foregroundStyle(.black)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(color.color, in: Capsule())
+                .background(theme.color(color), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
             Text(value)
-                .font(.system(size: 15, weight: .black, design: .rounded))
+                .font(theme.typography.display(size: 16))
                 .lineLimit(1)
                 .minimumScaleFactor(0.52)
         }
@@ -160,9 +162,10 @@ struct MicroStat: View {
 }
 
 struct WaveformView: View {
+    @Environment(\.astraTheme) private var theme
     var seed: Int
     var amplitude: Double
-    var color: ConsoleColor
+    var color: AstraColorRole
 
     var body: some View {
         Canvas { context, size in
@@ -178,17 +181,18 @@ struct WaveformView: View {
                     path.addLine(to: CGPoint(x: x, y: y))
                 }
             }
-            context.stroke(path, with: .color(color.color), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+            context.stroke(path, with: .color(theme.color(color)), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
 
             var mid = Path()
             mid.move(to: CGPoint(x: 0, y: size.height * 0.5))
             mid.addLine(to: CGPoint(x: size.width, y: size.height * 0.5))
-            context.stroke(mid, with: .color(.white.opacity(0.12)), lineWidth: 1)
+            context.stroke(mid, with: .color(theme.palette.text.opacity(0.12)), lineWidth: 1)
         }
     }
 }
 
 struct MemoryBlocks: View {
+    @Environment(\.astraTheme) private var theme
     var pressure: Double
 
     var body: some View {
@@ -206,7 +210,7 @@ struct MemoryBlocks: View {
                         ForEach(0..<columns, id: \.self) { column in
                             let index = row * columns + column
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(index < active ? color(for: Double(index) / Double(columns * rows)) : Color.white.opacity(0.08))
+                                .fill(index < active ? color(for: Double(index) / Double(columns * rows)) : theme.palette.text.opacity(0.08))
                                 .frame(width: cellWidth, height: cellHeight)
                         }
                     }
@@ -216,13 +220,14 @@ struct MemoryBlocks: View {
     }
 
     private func color(for ratio: Double) -> Color {
-        if ratio > 0.72 { return ConsoleColor.rose.color }
-        if ratio > 0.48 { return ConsoleColor.gold.color }
-        return ConsoleColor.violet.color
+        if ratio > 0.72 { return theme.color(.rose) }
+        if ratio > 0.48 { return theme.color(.gold) }
+        return theme.color(.violet)
     }
 }
 
 struct PacketLanes: View {
+    @Environment(\.astraTheme) private var theme
     var input: Double
     var output: Double
     var pulse: Double
@@ -235,7 +240,7 @@ struct PacketLanes: View {
                 var baseline = Path()
                 baseline.move(to: CGPoint(x: 0, y: y))
                 baseline.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(baseline, with: .color(.white.opacity(0.11)), lineWidth: 1)
+                context.stroke(baseline, with: .color(theme.palette.text.opacity(0.11)), lineWidth: 1)
 
                 let direction: CGFloat = lane.isMultiple(of: 2) ? 1 : -1
                 let speed = min(1, (lane.isMultiple(of: 2) ? input : output) / 4_000_000)
@@ -244,7 +249,7 @@ struct PacketLanes: View {
                     let base = (CGFloat(packet) / 7 + offset).truncatingRemainder(dividingBy: 1)
                     let x = direction > 0 ? base * size.width : (1 - base) * size.width
                     let rect = CGRect(x: x - 10, y: y - 4, width: 20 + CGFloat(speed) * 22, height: 8)
-                    context.fill(Path(roundedRect: rect, cornerRadius: 3), with: .color(lane.isMultiple(of: 2) ? ConsoleColor.cyan.color : ConsoleColor.mint.color))
+                    context.fill(Path(roundedRect: rect, cornerRadius: 3), with: .color(lane.isMultiple(of: 2) ? theme.color(.cyan) : theme.color(.mint)))
                 }
             }
         }
@@ -252,6 +257,7 @@ struct PacketLanes: View {
 }
 
 struct HeatStack: View {
+    @Environment(\.astraTheme) private var theme
     var value: Double
 
     var body: some View {
@@ -259,13 +265,13 @@ struct HeatStack: View {
             ForEach(0..<18, id: \.self) { index in
                 let ratio = Double(index + 1) / 18
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(ratio <= value ? color(for: ratio) : Color.white.opacity(0.08))
+                    .fill(ratio <= value ? color(for: ratio) : theme.palette.text.opacity(0.08))
                     .frame(height: 12 + CGFloat(index % 6) * 6)
             }
         }
     }
 
     private func color(for ratio: Double) -> Color {
-        ratio > 0.7 ? ConsoleColor.rose.color : ratio > 0.48 ? ConsoleColor.gold.color : ConsoleColor.cyan.color
+        ratio > 0.7 ? theme.color(.rose) : ratio > 0.48 ? theme.color(.gold) : theme.color(.cyan)
     }
 }

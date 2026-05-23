@@ -6,9 +6,11 @@ final class DashboardStore: ObservableObject {
     @Published var selectedDashboardID: UUID
     @Published var builderGroup: WidgetGroup = .system
     @Published var isBuilderVisible: Bool = true
+    @Published var selectedThemeID: AstraThemeID
 
     private let defaultsKey = "spaceship-dashboard.layouts.v1"
     private let selectedKey = "spaceship-dashboard.selected.v1"
+    private let themeKey = "spaceship-dashboard.theme.v1"
 
     init() {
         let loadedDashboards: [DashboardLayout]
@@ -28,6 +30,17 @@ final class DashboardStore: ObservableObject {
         } else {
             selectedDashboardID = loadedDashboards[0].id
         }
+
+        if let rawTheme = UserDefaults.standard.string(forKey: themeKey),
+           let themeID = AstraThemeID(rawValue: rawTheme) {
+            selectedThemeID = themeID
+        } else {
+            selectedThemeID = .classic
+        }
+    }
+
+    var astraTheme: AstraConsoleTheme {
+        selectedThemeID.theme
     }
 
     var selectedDashboard: DashboardLayout {
@@ -78,6 +91,20 @@ final class DashboardStore: ObservableObject {
         selectedDashboardID = dashboards[0].id
         save()
         saveSelection()
+    }
+
+    func selectTheme(_ themeID: AstraThemeID) {
+        selectedThemeID = themeID
+        UserDefaults.standard.set(themeID.rawValue, forKey: themeKey)
+    }
+
+    func selectNextTheme() {
+        let themes = AstraThemeID.allCases
+        guard let index = themes.firstIndex(of: selectedThemeID) else {
+            selectTheme(.classic)
+            return
+        }
+        selectTheme(themes[(index + 1) % themes.count])
     }
 
     func updateSelectedName(_ name: String) {

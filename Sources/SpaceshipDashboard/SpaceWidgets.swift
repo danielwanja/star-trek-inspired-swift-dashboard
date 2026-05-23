@@ -2,10 +2,11 @@ import SwiftUI
 
 struct GalaxyWidget: View {
     @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(\.astraTheme) private var theme
 
     var body: some View {
         GalaxyScene(phase: liveData.pulse)
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 8) {
                     HeaderChip(title: "SECTOR 7-ALPHA", color: .cyan)
@@ -17,6 +18,7 @@ struct GalaxyWidget: View {
 }
 
 struct GalaxyScene: View {
+    @Environment(\.astraTheme) private var theme
     var phase: Double
 
     var body: some View {
@@ -33,13 +35,13 @@ struct GalaxyScene: View {
                 let x = center.x + CGFloat(cos(angle) * radius) + depthOffset * CGFloat(depth)
                 let y = center.y + CGFloat(sin(angle) * radius * 0.48) + CGFloat(depth * 18)
                 let starSize = CGFloat(1.2 + (depth + 1) * 1.2)
-                let color = index.isMultiple(of: 9) ? ConsoleColor.rose.color : index.isMultiple(of: 5) ? ConsoleColor.gold.color : .white
+                let color = index.isMultiple(of: 9) ? theme.color(.rose) : index.isMultiple(of: 5) ? theme.color(.gold) : theme.palette.text
                 context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: starSize, height: starSize)), with: .color(color.opacity(0.55 + depth * 0.22)))
             }
 
             let core = Path(ellipseIn: CGRect(x: center.x - 42, y: center.y - 26, width: 84, height: 52))
             context.fill(core, with: .radialGradient(
-                Gradient(colors: [ConsoleColor.gold.color.opacity(0.82), ConsoleColor.rose.color.opacity(0.32), .clear]),
+                Gradient(colors: [theme.color(.gold).opacity(0.82), theme.color(.rose).opacity(0.32), .clear]),
                 center: center,
                 startRadius: 2,
                 endRadius: 70
@@ -52,7 +54,7 @@ struct GalaxyScene: View {
                     width: CGFloat(180 + orbit * 84),
                     height: CGFloat(76 + orbit * 36)
                 )
-                context.stroke(Path(ellipseIn: rect), with: .color(ConsoleColor.cyan.color.opacity(0.12)), lineWidth: 1)
+                context.stroke(Path(ellipseIn: rect), with: .color(theme.color(.cyan).opacity(0.12)), lineWidth: 1)
             }
         }
     }
@@ -74,13 +76,14 @@ struct PlanetOrbitWidget: View {
 }
 
 struct OrbitCanvas: View {
+    @Environment(\.astraTheme) private var theme
     var phase: Double
 
     var body: some View {
         Canvas { context, size in
             let center = CGPoint(x: size.width * 0.5, y: size.height * 0.48)
             context.fill(Path(ellipseIn: CGRect(x: center.x - 20, y: center.y - 20, width: 40, height: 40)), with: .radialGradient(
-                Gradient(colors: [ConsoleColor.gold.color, ConsoleColor.apricot.color, .clear]),
+                Gradient(colors: [theme.color(.gold), theme.color(.apricot), .clear]),
                 center: center,
                 startRadius: 3,
                 endRadius: 38
@@ -90,13 +93,13 @@ struct OrbitCanvas: View {
                 let w = CGFloat(92 + index * 54)
                 let h = CGFloat(42 + index * 28)
                 let rect = CGRect(x: center.x - w / 2, y: center.y - h / 2, width: w, height: h)
-                context.stroke(Path(ellipseIn: rect), with: .color(.white.opacity(0.14)), lineWidth: 1)
+                context.stroke(Path(ellipseIn: rect), with: .color(theme.palette.text.opacity(0.14)), lineWidth: 1)
 
                 let angle = phase * .pi * 2 * (index.isMultiple(of: 2) ? 1 : -1) + Double(index) * 0.93
                 let x = center.x + cos(angle) * w / 2
                 let y = center.y + sin(angle) * h / 2
                 let radius = CGFloat(5 + index * 2)
-                let color: Color = [ConsoleColor.cyan.color, ConsoleColor.violet.color, ConsoleColor.rose.color, ConsoleColor.mint.color, ConsoleColor.apricot.color][index]
+                let color: Color = [theme.color(.cyan), theme.color(.violet), theme.color(.rose), theme.color(.mint), theme.color(.apricot)][index]
                 context.fill(Path(ellipseIn: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2)), with: .color(color))
             }
         }
@@ -117,6 +120,7 @@ struct StarMapWidget: View {
 }
 
 struct StarMapCanvas: View {
+    @Environment(\.astraTheme) private var theme
     var phase: Double
 
     var body: some View {
@@ -126,7 +130,7 @@ struct StarMapCanvas: View {
                 var path = Path()
                 path.move(to: stars[pair])
                 path.addLine(to: stars[(pair + 3) % stars.count])
-                context.stroke(path, with: .color(ConsoleColor.cyan.color.opacity(0.18)), lineWidth: 1)
+                context.stroke(path, with: .color(theme.color(.cyan).opacity(0.18)), lineWidth: 1)
             }
 
             var route = Path()
@@ -138,11 +142,11 @@ struct StarMapCanvas: View {
             for (index, point) in routePoints.enumerated() {
                 if index == 0 { route.move(to: point) } else { route.addLine(to: point) }
             }
-            context.stroke(route, with: .color(ConsoleColor.gold.color), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [9, 6], dashPhase: phase * 20))
+            context.stroke(route, with: .color(theme.color(.gold)), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [9, 6], dashPhase: phase * 20))
 
             for (index, star) in stars.enumerated() {
                 let radius = CGFloat(index.isMultiple(of: 11) ? 3.4 : 1.8)
-                let color = index.isMultiple(of: 11) ? ConsoleColor.rose.color : .white
+                let color = index.isMultiple(of: 11) ? theme.color(.rose) : theme.palette.text
                 context.fill(Path(ellipseIn: CGRect(x: star.x - radius, y: star.y - radius, width: radius * 2, height: radius * 2)), with: .color(color.opacity(0.86)))
             }
         }
@@ -172,6 +176,7 @@ struct TacticalSweepWidget: View {
 }
 
 struct TacticalSweepCanvas: View {
+    @Environment(\.astraTheme) private var theme
     var phase: Double
 
     var body: some View {
@@ -182,7 +187,7 @@ struct TacticalSweepCanvas: View {
             for ring in 1...5 {
                 context.stroke(
                     Path(ellipseIn: CGRect(x: center.x - radius * CGFloat(ring) / 5, y: center.y - radius * CGFloat(ring) / 5, width: radius * 2 * CGFloat(ring) / 5, height: radius * 2 * CGFloat(ring) / 5)),
-                    with: .color(ConsoleColor.cyan.color.opacity(0.14)),
+                    with: .color(theme.color(.cyan).opacity(0.14)),
                     lineWidth: 1
                 )
             }
@@ -192,7 +197,7 @@ struct TacticalSweepCanvas: View {
                 var path = Path()
                 path.move(to: center)
                 path.addLine(to: CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius))
-                context.stroke(path, with: .color(.white.opacity(0.07)), lineWidth: 1)
+                context.stroke(path, with: .color(theme.palette.text.opacity(0.07)), lineWidth: 1)
             }
 
             let sweepAngle = phase * .pi * 2 - .pi / 2
@@ -200,14 +205,14 @@ struct TacticalSweepCanvas: View {
             sweep.move(to: center)
             sweep.addArc(center: center, radius: radius, startAngle: .radians(sweepAngle - 0.35), endAngle: .radians(sweepAngle), clockwise: false)
             sweep.closeSubpath()
-            context.fill(sweep, with: .color(ConsoleColor.mint.color.opacity(0.22)))
+            context.fill(sweep, with: .color(theme.color(.mint).opacity(0.22)))
 
             for contact in 0..<14 {
                 let angle = Double(contact * 73) * .pi / 180
                 let distance = radius * CGFloat(0.18 + Double((contact * 29) % 70) / 100)
                 let point = CGPoint(x: center.x + cos(angle) * distance, y: center.y + sin(angle) * distance)
                 let rect = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
-                context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(contact.isMultiple(of: 4) ? ConsoleColor.rose.color : ConsoleColor.gold.color))
+                context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(contact.isMultiple(of: 4) ? theme.color(.rose) : theme.color(.gold)))
             }
         }
     }

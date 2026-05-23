@@ -29,7 +29,7 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    var accent: ConsoleColor {
+    var accent: AstraColorRole {
         switch self {
         case .system: .apricot
         case .general: .violet
@@ -230,6 +230,38 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .alertLog: "exclamationmark.triangle"
         }
     }
+
+    var panelCode: String {
+        switch self {
+        case .cpuActivity: "01-CPU"
+        case .memoryPressure: "02-MEM"
+        case .networkActivity: "03-NET"
+        case .diskUsage: "04-DSK"
+        case .temperature: "05-TMP"
+        case .processPulse: "06-PRC"
+        case .epochMillis: "07-EPC"
+        case .formatTime: "08-TME"
+        case .analogClock: "09-CLK"
+        case .calendar: "10-CAL"
+        case .worldClock: "11-WLD"
+        case .countdown: "12-CNT"
+        case .progressBars: "13-BAR"
+        case .galaxy: "14-GAL"
+        case .planetOrbit: "15-ORB"
+        case .starMap: "16-MAP"
+        case .tacticalSweep: "17-SCN"
+        case .fakeTelemetry: "18-TEL"
+        case .fakeDataMatrix: "19-MTX"
+        case .fakeDiagnostics: "20-DIA"
+        case .missionStatus: "21-OPS"
+        case .crewReadiness: "22-CRW"
+        case .shieldGrid: "23-SHD"
+        case .lifeSupport: "24-LFS"
+        case .powerDistribution: "25-PWR"
+        case .commsTraffic: "26-COM"
+        case .alertLog: "27-LOG"
+        }
+    }
 }
 
 struct DashboardWidget: Identifiable, Codable, Equatable {
@@ -255,30 +287,6 @@ struct DashboardLayout: Identifiable, Codable, Equatable {
         self.name = name
         self.subtitle = subtitle
         self.widgets = widgets
-    }
-}
-
-enum ConsoleColor: String, CaseIterable, Codable {
-    case apricot
-    case gold
-    case violet
-    case rose
-    case cyan
-    case mint
-    case red
-    case blue
-
-    var color: Color {
-        switch self {
-        case .apricot: Color(red: 1.0, green: 0.55, blue: 0.34)
-        case .gold: Color(red: 1.0, green: 0.78, blue: 0.27)
-        case .violet: Color(red: 0.71, green: 0.56, blue: 1.0)
-        case .rose: Color(red: 1.0, green: 0.39, blue: 0.58)
-        case .cyan: Color(red: 0.23, green: 0.86, blue: 1.0)
-        case .mint: Color(red: 0.42, green: 1.0, blue: 0.68)
-        case .red: Color(red: 1.0, green: 0.25, blue: 0.25)
-        case .blue: Color(red: 0.36, green: 0.56, blue: 1.0)
-        }
     }
 }
 
