@@ -5,21 +5,40 @@ struct EpochMillisWidget: View {
 
     var body: some View {
         ConsoleTimelineView { now in
-            let frame = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
-            VStack(alignment: .leading, spacing: 10) {
-                Text("\(Int64(now.timeIntervalSince1970 * 1000))")
-                    .font(theme.typography.data(size: 27))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.45)
-                MetricLine(label: "Seconds", value: "\(Int64(now.timeIntervalSince1970))", progress: now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60, color: .violet)
-                MetricLine(label: "Frame", value: String(format: "%04d", Int(frame * 10_000)), progress: frame, color: .cyan)
+            // Everything that changes per tick is one Canvas draw.
+            Canvas { context, size in
+                let frame = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
+                let millis = context.resolve(
+                    Text("\(Int64(now.timeIntervalSince1970 * 1000))")
+                        .font(theme.typography.data(size: 27))
+                        .foregroundStyle(theme.palette.text)
+                )
+                context.draw(millis, at: .zero, anchor: .topLeading)
+
+                let rows = [
+                    CanvasMetricRow(
+                        label: "Seconds",
+                        value: "\(Int64(now.timeIntervalSince1970))",
+                        progress: now.timeIntervalSince1970.truncatingRemainder(dividingBy: 60) / 60,
+                        color: .violet
+                    ),
+                    CanvasMetricRow(
+                        label: "Frame",
+                        value: String(format: "%04d", Int(frame * 10_000)),
+                        progress: frame,
+                        color: .cyan
+                    )
+                ]
+                let rowsRect = CGRect(x: 0, y: 42, width: size.width, height: size.height - 42)
+                context.drawMetricRows(rows, in: rowsRect, theme: theme)
             }
         }
+        .frame(height: 42 + MetricRowLayout.height(rows: 2))
     }
 }
 
 struct TimeFormatsWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     var body: some View {
         VStack(spacing: 10) {
@@ -107,7 +126,7 @@ struct AnalogClockWidget: View {
 }
 
 struct CalendarWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
 
     private var daySymbols: [String] {
@@ -159,7 +178,7 @@ struct CalendarWidget: View {
 }
 
 struct WorldClockWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     private let zones: [(String, TimeZone)] = [
         ("DEN", .init(identifier: "America/Denver") ?? .current),
@@ -182,17 +201,31 @@ struct CountdownWidget: View {
 
     var body: some View {
         ConsoleTimelineView { date in
-            let target = nextTopOfHour(after: date)
-            let remaining = max(0, target.timeIntervalSince(date))
-            VStack(alignment: .leading, spacing: 12) {
-                Text(timecode(remaining))
-                    .font(theme.typography.data(size: 34))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.55)
-                MetricLine(label: "Next mark", value: Formatters.clock(target), progress: 1 - remaining / 3600, color: .rose)
-                SegmentedBar(progress: 1 - remaining / 3600, color: .gold, segments: 24)
+            Canvas { context, size in
+                let target = nextTopOfHour(after: date)
+                let remaining = max(0, target.timeIntervalSince(date))
+                let progress = 1 - remaining / 3600
+
+                let timecode = context.resolve(
+                    Text(timecode(remaining))
+                        .font(theme.typography.data(size: 34))
+                        .foregroundStyle(theme.palette.text)
+                )
+                context.draw(timecode, at: .zero, anchor: .topLeading)
+
+                let row = CanvasMetricRow(
+                    label: "Next mark",
+                    value: Formatters.clock(target),
+                    progress: progress,
+                    color: .rose
+                )
+                context.drawMetricRow(row, in: CGRect(x: 0, y: 50, width: size.width, height: MetricRowLayout.rowHeight), theme: theme)
+
+                let barRect = CGRect(x: 0, y: 50 + MetricRowLayout.rowHeight + 12, width: size.width, height: 10)
+                context.drawSegmentedBar(in: barRect, progress: progress, theme: theme, color: .gold, segments: 24)
             }
         }
+        .frame(height: 50 + MetricRowLayout.rowHeight + 22)
     }
 
     private func nextTopOfHour(after date: Date) -> Date {
@@ -211,7 +244,7 @@ struct CountdownWidget: View {
 }
 
 struct ProgressBarsWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     private var rows: [(String, AstraColorRole, Double)] {
         let telemetry = liveData.telemetry

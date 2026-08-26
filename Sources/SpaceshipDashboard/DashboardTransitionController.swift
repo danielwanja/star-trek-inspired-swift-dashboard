@@ -1,8 +1,14 @@
 import Foundation
+import Observation
 
+/// Owns which dashboard is displayed. Selection is fully synchronous:
+/// no sleeps, no settle timers, no animation pausing. Cosmetic transition
+/// effects (the boot flash) are layered on top by the view and never gate
+/// state changes.
 @MainActor
-final class DashboardTransitionController: ObservableObject {
-    @Published private(set) var displayedDashboardID: UUID
+@Observable
+final class DashboardTransitionController {
+    private(set) var displayedDashboardID: UUID
 
     init(initialID: UUID) {
         self.displayedDashboardID = initialID

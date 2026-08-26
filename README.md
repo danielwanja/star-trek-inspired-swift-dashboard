@@ -7,7 +7,7 @@ The app runs as a local desktop dashboard. It combines real Mac telemetry with s
 <img alt="Dashboard" src="./dashboard.webp" width="750">
 
 > [!NOTE]
-> The UI is still experimental and can feel sluggish during animation-heavy dashboard updates. 
+> The UI is still experimental.
 
 ## Requirements
 
@@ -20,10 +20,10 @@ The app runs as a local desktop dashboard. It combines real Mac telemetry with s
 From the repository root:
 
 ```bash
-swift run SpaceshipDashboard
+./run.sh
 ```
 
-You can also open the folder in Xcode and run the `SpaceshipDashboard` executable target.
+Pass `--release` for an optimized build. This wraps `swift run SpaceshipDashboard`, which works too, and you can also open the folder in Xcode and run the `SpaceshipDashboard` executable target.
 
 ## Features
 
@@ -111,9 +111,12 @@ macOS does not expose exact sensor temperatures through public Swift APIs. The t
 ```text
 Package.swift
 Sources/SpaceshipDashboard/
+  AnimationPhaseView.swift
   AstraConsoleTheme.swift
   ConsoleViews.swift
+  CoreAnimationOverlays.swift
   DashboardStore.swift
+  DashboardTransitionController.swift
   FakeAndMissionWidgets.swift
   Formatters.swift
   Models.swift
@@ -122,6 +125,9 @@ Sources/SpaceshipDashboard/
   SystemTelemetry.swift
   SystemWidgets.swift
   TimeWidgets.swift
+  WidgetCanvasDrawing.swift
+Tests/SpaceshipDashboardTests/
+  PerformanceHarness.swift
 research/astra-console-interface/
 ```
 
@@ -141,7 +147,25 @@ Run the app:
 swift run SpaceshipDashboard
 ```
 
-The package currently has no test target.
+Run the tests:
+
+```bash
+./test.sh
+```
+
+Arguments are forwarded to `swift test`, e.g. `./test.sh --filter "Builder toggle"`.
+
+The test target is a performance harness that guards the UI's latency budgets: dashboard switches and builder toggles must be synchronous, animation pausing must never be coupled to user-visible toggles, store mutations must stay in-memory with persistence debounced, and date formatters must be cached.
+
+## Performance Architecture
+
+The app is built to animate continuously without meaningful CPU cost. The rules that keep it that way:
+
+- **One aligned clock.** Ambient animations run through `AnimationPhaseView` / `ConsoleTimelineView`, whose `AlignedPeriodicSchedule` shares a single epoch, so simultaneous widget ticks coalesce into one main-thread wakeup at the widget's own frame rate (typically 6–20 Hz — most console effects don't need more).
+- **Ticks invalidate a Canvas, not a view tree.** Anything that changes per tick is drawn in a single `Canvas` (see `WidgetCanvasDrawing.swift`); static chrome lives outside the timeline closure. Never put stacks of `Text`/`SegmentedBar` views inside a timeline tick.
+- **Steady-state loops run on the render server.** The tactical sweep and flowing dash routes (`CoreAnimationOverlays.swift`) are Core Animation layers: once installed they cost zero app CPU per frame.
+- **Transitions are synchronous.** `DashboardTransitionController` switches dashboards with no sleeps or settle timers; the boot flash is a cosmetic overlay above the already-mounted dashboard, and it is the only thing allowed to pause widget animations.
+- **State is `@Observable` and persistence is debounced.** Views depend on exactly the properties they read, and layout mutations are in-memory edits with a debounced JSON write behind them.
 
 ## License
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CPUCoreWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
 
     private var cores: [Double] {
@@ -65,7 +65,7 @@ struct CPUCoreWidget: View {
 }
 
 struct CPUWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     var body: some View {
         HStack(spacing: 14) {
@@ -85,7 +85,7 @@ struct CPUWidget: View {
 }
 
 struct MemoryWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     var body: some View {
         VStack(spacing: 13) {
@@ -108,7 +108,7 @@ struct MemoryWidget: View {
 }
 
 struct NetworkWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     var body: some View {
         VStack(spacing: 12) {
@@ -122,7 +122,7 @@ struct NetworkWidget: View {
                 progress: min(1, (liveData.telemetry.networkInRate + liveData.telemetry.networkOutRate) / 8_000_000),
                 color: .cyan
             )
-            AnimationPhaseView(speed: 0.18) { phase in
+            AnimationPhaseView(speed: 0.18, frameRate: 1.0 / 20.0) { phase in
                 PacketLanes(input: liveData.telemetry.networkInRate, output: liveData.telemetry.networkOutRate, phase: phase)
                     .frame(height: 58)
             }
@@ -131,7 +131,7 @@ struct NetworkWidget: View {
 }
 
 struct DiskWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     private var usedRatio: Double {
         liveData.telemetry.diskTotal > 0 ? liveData.telemetry.diskUsed / liveData.telemetry.diskTotal : 0
@@ -150,7 +150,7 @@ struct DiskWidget: View {
 }
 
 struct TemperatureWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
@@ -184,7 +184,7 @@ struct TemperatureWidget: View {
 }
 
 struct ProcessPulseWidget: View {
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(LiveDataHub.self) private var liveData
 
     var body: some View {
         VStack(spacing: 12) {

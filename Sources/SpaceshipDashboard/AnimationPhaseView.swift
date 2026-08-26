@@ -17,6 +17,45 @@ extension EnvironmentValues {
     }
 }
 
+/// Periodic schedule with a shared epoch: every widget's ticks land on the
+/// same wall-clock instants, so simultaneous timelines coalesce into one
+/// main-thread wakeup per tick instead of N unaligned timers. Unlike the
+/// built-in `.animation` schedule it never drives at display-link rate —
+/// the main thread wakes exactly `1/interval` times per second.
+///
+/// Pausing empties the entry sequence, which freezes the timeline without
+/// changing the view structure, so pause/resume never tears down or
+/// rebuilds the content subtree.
+struct AlignedPeriodicSchedule: TimelineSchedule {
+    var interval: TimeInterval
+    var paused: Bool
+
+    private static let epoch = Date(timeIntervalSinceReferenceDate: 0)
+
+    struct Entries: Sequence, IteratorProtocol {
+        var upcoming: Date?
+        let interval: TimeInterval
+
+        mutating func next() -> Date? {
+            guard let current = upcoming else { return nil }
+            upcoming = current.addingTimeInterval(interval)
+            return current
+        }
+    }
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> Entries {
+        guard !paused, interval > 0 else { return Entries(upcoming: nil, interval: 1) }
+        let step = mode == .lowFrequency ? max(interval, 1) : interval
+        let since = startDate.timeIntervalSince(Self.epoch)
+        let aligned = Self.epoch.addingTimeInterval((since / step).rounded(.up) * step)
+        return Entries(upcoming: aligned, interval: step)
+    }
+}
+
+/// Drives a repeating 0..<1 phase for ambient widget animations.
+///
+/// Keep the tick closure small: ideally a single `Canvas` (or one Text),
+/// so each tick invalidates a draw, not a view tree.
 struct AnimationPhaseView<Content: View>: View {
     @Environment(\.astraTheme) private var theme
     @Environment(\.astraAnimationsPaused) private var animationsPaused
@@ -36,12 +75,8 @@ struct AnimationPhaseView<Content: View>: View {
     }
 
     var body: some View {
-        if animationsPaused {
-            content(0)
-        } else {
-            TimelineView(.periodic(from: .now, by: frameRate)) { timeline in
-                content(Self.phase(for: timeline.date, speed: speed * theme.animationIntensity))
-            }
+        TimelineView(AlignedPeriodicSchedule(interval: frameRate, paused: animationsPaused)) { timeline in
+            content(Self.phase(for: timeline.date, speed: speed * theme.animationIntensity))
         }
     }
 
@@ -58,7 +93,7 @@ struct ConsoleTimelineView<Content: View>: View {
     private let content: (Date) -> Content
 
     init(
-        frameRate: TimeInterval = 1.0 / 30.0,
+        frameRate: TimeInterval = 1.0 / 15.0,
         @ViewBuilder content: @escaping (Date) -> Content
     ) {
         self.frameRate = frameRate
@@ -66,12 +101,8 @@ struct ConsoleTimelineView<Content: View>: View {
     }
 
     var body: some View {
-        if animationsPaused {
-            content(Date())
-        } else {
-            TimelineView(.periodic(from: .now, by: frameRate)) { timeline in
-                content(timeline.date)
-            }
+        TimelineView(AlignedPeriodicSchedule(interval: frameRate, paused: animationsPaused)) { timeline in
+            content(timeline.date)
         }
     }
 }

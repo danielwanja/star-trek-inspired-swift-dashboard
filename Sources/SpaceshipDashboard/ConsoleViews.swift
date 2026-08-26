@@ -1,30 +1,34 @@
 import SwiftUI
 
 struct DashboardRootView: View {
-    @EnvironmentObject private var store: DashboardStore
-    @State private var displayedDashboardID: UUID?
+    @Environment(DashboardStore.self) private var store
+    @Environment(DashboardTransitionController.self) private var transition
     @State private var bootingDashboard: DashboardLayout?
-    @State private var isTransitionSettling = false
-    @State private var dashboardSwitchTask: Task<Void, Never>?
-    @State private var builderToggleTask: Task<Void, Never>?
+    @State private var bootTask: Task<Void, Never>?
 
+    /// Builder visibility and post-switch settling must never pause
+    /// animations: flipping the pause environment invalidates every
+    /// animated widget at once, which is exactly the hitch it used to
+    /// cause. Only the boot flash pauses (the canvas is covered anyway).
     static func animationPauseReasons(
         isBuilderVisible: Bool,
         isBooting: Bool,
         isSettling: Bool
     ) -> Set<AnimationPauseReason> {
         var reasons: Set<AnimationPauseReason> = []
-        if isBuilderVisible { reasons.insert(.builderVisible) }
         if isBooting { reasons.insert(.booting) }
-        if isSettling { reasons.insert(.settling) }
         return reasons
     }
 
     var body: some View {
         let theme = store.astraTheme
-        let displayedDashboard = dashboard(for: displayedDashboardID ?? store.selectedDashboardID)
+        let displayedDashboard = dashboard(for: transition.displayedDashboardID)
         let presentationDashboard = bootingDashboard ?? displayedDashboard
-        let widgetAnimationsPaused = store.isBuilderVisible || bootingDashboard != nil || isTransitionSettling
+        let pauseReasons = Self.animationPauseReasons(
+            isBuilderVisible: store.isBuilderVisible,
+            isBooting: bootingDashboard != nil,
+            isSettling: false
+        )
 
         ZStack {
             ConsoleBackground()
@@ -36,43 +40,38 @@ struct DashboardRootView: View {
                         onSelectDashboard: beginDashboardSwitch
                     )
                     ZStack {
+                        DashboardCanvas(
+                            dashboard: displayedDashboard,
+                            isBuilderVisible: store.isBuilderVisible,
+                            onResizeWidget: { widget, size in store.resizeWidget(widget, to: size) },
+                            onRemoveWidget: { widget in store.removeWidget(widget) }
+                        )
+                        .id(displayedDashboard.id)
+
                         if let bootingDashboard {
                             DashboardBootSequence(dashboard: bootingDashboard)
                                 .id(bootingDashboard.id)
-                        } else {
-                            DashboardCanvas(
-                                dashboard: displayedDashboard,
-                                isBuilderVisible: store.isBuilderVisible,
-                                onResizeWidget: { widget, size in store.resizeWidget(widget, to: size) },
-                                onRemoveWidget: { widget in store.removeWidget(widget) }
-                            )
-                            .id(displayedDashboard.id)
+                                .transition(.opacity)
                         }
                     }
                     if store.isBuilderVisible {
                         BuilderPanel()
                             .frame(width: 330)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                 }
             }
             .padding(theme.metrics.outerPadding)
         }
         .environment(\.astraTheme, theme)
-        .environment(\.astraAnimationsPaused, widgetAnimationsPaused)
+        .environment(\.astraAnimationsPaused, !pauseReasons.isEmpty)
         .foregroundStyle(theme.palette.text)
         .preferredColorScheme(.dark)
-        .onAppear {
-            if displayedDashboardID == nil {
-                displayedDashboardID = store.selectedDashboardID
-            }
-        }
         .onChange(of: store.selectedDashboardID) { _, newValue in
-            guard bootingDashboard == nil else { return }
-            displayedDashboardID = newValue
+            transition.sync(with: newValue)
         }
         .onDisappear {
-            dashboardSwitchTask?.cancel()
-            builderToggleTask?.cancel()
+            bootTask?.cancel()
         }
     }
 
@@ -81,64 +80,25 @@ struct DashboardRootView: View {
     }
 
     private func beginDashboardSwitch(to dashboard: DashboardLayout) {
-        let activeID = bootingDashboard?.id ?? displayedDashboardID ?? store.selectedDashboardID
-        guard dashboard.id != activeID else { return }
+        guard dashboard.id != transition.displayedDashboardID else { return }
 
-        dashboardSwitchTask?.cancel()
-        builderToggleTask?.cancel()
+        // The switch itself is synchronous; the boot sequence is a purely
+        // cosmetic overlay above the already-mounted new dashboard.
+        transition.select(dashboard, in: store)
+        bootTask?.cancel()
         bootingDashboard = dashboard
-        isTransitionSettling = true
-
-        dashboardSwitchTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .milliseconds(50))
-            } catch {
-                return
-            }
+        bootTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else { return }
-
-            store.select(dashboard)
-            displayedDashboardID = dashboard.id
-
-            do {
-                try await Task.sleep(for: .milliseconds(120))
-            } catch {
-                return
+            withAnimation(.easeOut(duration: 0.16)) {
+                bootingDashboard = nil
             }
-            guard !Task.isCancelled else { return }
-
-            bootingDashboard = nil
-
-            do {
-                try await Task.sleep(for: .milliseconds(180))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-
-            isTransitionSettling = false
         }
     }
 
     private func toggleBuilderPanel() {
-        builderToggleTask?.cancel()
-        isTransitionSettling = true
-
-        var transaction = Transaction(animation: nil)
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            store.isBuilderVisible.toggle()
-        }
-
-        builderToggleTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .milliseconds(180))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-
-            isTransitionSettling = bootingDashboard != nil
+        withAnimation(.snappy(duration: 0.2)) {
+            transition.toggleBuilder(in: store)
         }
     }
 }
@@ -169,6 +129,10 @@ struct ConsoleBackground: View {
                 endPoint: .bottomTrailing
             )
         }
+        // The background stack is static per theme/size; flatten it into a
+        // single cached texture so per-tick window updates don't re-blend
+        // four full-window layers.
+        .drawingGroup()
         .ignoresSafeArea()
     }
 }
@@ -232,7 +196,7 @@ struct DashboardBootSequence: View {
             bottomLabel: dashboard.deckCode,
             railWidth: 150
         ) {
-            TimelineView(.periodic(from: .now, by: 1.0 / 12.0)) { timeline in
+            TimelineView(AlignedPeriodicSchedule(interval: 1.0 / 12.0, paused: false)) { timeline in
                 let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
                 VStack(alignment: .leading, spacing: theme.metrics.gap) {
                     HStack(spacing: theme.metrics.fineGap) {
@@ -285,8 +249,8 @@ struct DashboardBootSequence: View {
 }
 
 struct CommandHeader: View {
-    @EnvironmentObject private var store: DashboardStore
-    @EnvironmentObject private var liveData: LiveDataHub
+    @Environment(DashboardStore.self) private var store
+    @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
     var dashboard: DashboardLayout
     var onToggleBuilder: () -> Void
@@ -561,7 +525,7 @@ struct AstraVerticalRail: View {
 }
 
 struct ThemeSelectorPanel: View {
-    @EnvironmentObject private var store: DashboardStore
+    @Environment(DashboardStore.self) private var store
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
@@ -610,7 +574,7 @@ struct ThemeSelectorPanel: View {
 }
 
 struct ConsoleSidebar: View {
-    @EnvironmentObject private var store: DashboardStore
+    @Environment(DashboardStore.self) private var store
     @Environment(\.astraTheme) private var theme
     var activeDashboardID: UUID
     var onSelectDashboard: (DashboardLayout) -> Void
@@ -921,7 +885,7 @@ struct WidgetHeader: View {
 }
 
 struct BuilderPanel: View {
-    @EnvironmentObject private var store: DashboardStore
+    @Environment(DashboardStore.self) private var store
     @Environment(\.astraTheme) private var theme
 
     private var filteredKinds: [DashboardWidgetKind] {
@@ -929,6 +893,7 @@ struct BuilderPanel: View {
     }
 
     var body: some View {
+        @Bindable var store = store
         VStack(alignment: .leading, spacing: theme.metrics.gap) {
             HStack {
                 Text("BUILDER")
@@ -984,7 +949,7 @@ struct BuilderPanel: View {
 }
 
 struct CatalogRow: View {
-    @EnvironmentObject private var store: DashboardStore
+    @Environment(DashboardStore.self) private var store
     @Environment(\.astraTheme) private var theme
     var kind: DashboardWidgetKind
 
@@ -1019,7 +984,7 @@ struct CatalogRow: View {
 }
 
 struct SelectedWidgetRow: View {
-    @EnvironmentObject private var store: DashboardStore
+    @Environment(DashboardStore.self) private var store
     @Environment(\.astraTheme) private var theme
     var index: Int
     var widget: DashboardWidget

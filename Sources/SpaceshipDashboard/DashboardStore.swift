@@ -1,12 +1,17 @@
 import Foundation
+import Observation
 
 @MainActor
-final class DashboardStore: ObservableObject {
-    @Published var dashboards: [DashboardLayout]
-    @Published var selectedDashboardID: UUID
-    @Published var builderGroup: WidgetGroup = .system
-    @Published var isBuilderVisible: Bool = false
-    @Published var selectedThemeID: AstraThemeID
+@Observable
+final class DashboardStore {
+    var dashboards: [DashboardLayout]
+    var selectedDashboardID: UUID
+    var builderGroup: WidgetGroup = .system
+    var isBuilderVisible: Bool = false
+    var selectedThemeID: AstraThemeID
+
+    @ObservationIgnored private var pendingSave: Task<Void, Never>?
+    @ObservationIgnored private let defaults: UserDefaults
 
     private let defaultsKey = "spaceship-dashboard.layouts.v2"
     private let selectedKey = "spaceship-dashboard.selected.v2"
@@ -14,13 +19,14 @@ final class DashboardStore: ObservableObject {
     private let legacySelectedKey = "spaceship-dashboard.selected.v1"
     private let themeKey = "spaceship-dashboard.theme.v1"
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         let loadedDashboards: [DashboardLayout]
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
+        if let data = defaults.data(forKey: defaultsKey),
            let decoded = try? JSONDecoder().decode([DashboardLayout].self, from: data),
            !decoded.isEmpty {
             loadedDashboards = Self.normalizedDashboards(decoded)
-        } else if let data = UserDefaults.standard.data(forKey: legacyDefaultsKey),
+        } else if let data = defaults.data(forKey: legacyDefaultsKey),
                   let decoded = try? JSONDecoder().decode([DashboardLayout].self, from: data),
                   !decoded.isEmpty {
             loadedDashboards = Self.migratedDashboards(from: decoded)
@@ -29,11 +35,11 @@ final class DashboardStore: ObservableObject {
         }
         dashboards = loadedDashboards
 
-        if let rawID = UserDefaults.standard.string(forKey: selectedKey),
+        if let rawID = defaults.string(forKey: selectedKey),
            let id = UUID(uuidString: rawID),
            loadedDashboards.contains(where: { $0.id == id }) {
             selectedDashboardID = id
-        } else if let rawID = UserDefaults.standard.string(forKey: legacySelectedKey),
+        } else if let rawID = defaults.string(forKey: legacySelectedKey),
                   let id = UUID(uuidString: rawID),
                   loadedDashboards.contains(where: { $0.id == id }) {
             selectedDashboardID = loadedDashboards.first(where: { $0.name == "Engineering" })?.id ?? id
@@ -41,15 +47,15 @@ final class DashboardStore: ObservableObject {
             selectedDashboardID = loadedDashboards[0].id
         }
 
-        if let rawTheme = UserDefaults.standard.string(forKey: themeKey),
+        if let rawTheme = defaults.string(forKey: themeKey),
            let themeID = AstraThemeID(rawValue: rawTheme) {
             selectedThemeID = themeID
         } else {
             selectedThemeID = .classic
         }
 
-        if UserDefaults.standard.data(forKey: defaultsKey) == nil {
-            save()
+        if defaults.data(forKey: defaultsKey) == nil {
+            flushSave()
             saveSelection()
         }
     }
@@ -114,7 +120,7 @@ final class DashboardStore: ObservableObject {
 
     func selectTheme(_ themeID: AstraThemeID) {
         selectedThemeID = themeID
-        UserDefaults.standard.set(themeID.rawValue, forKey: themeKey)
+        defaults.set(themeID.rawValue, forKey: themeKey)
     }
 
     func selectNextTheme() {
@@ -166,14 +172,27 @@ final class DashboardStore: ObservableObject {
         selectedDashboard = dashboard
     }
 
+    // Debounced: rapid mutations (typing a name, dragging sizes) collapse
+    // into one encode + write instead of one per keystroke.
     private func save() {
+        pendingSave?.cancel()
+        pendingSave = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            self?.flushSave()
+        }
+    }
+
+    func flushSave() {
+        pendingSave?.cancel()
+        pendingSave = nil
         if let data = try? JSONEncoder().encode(dashboards) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+            defaults.set(data, forKey: defaultsKey)
         }
     }
 
     private func saveSelection() {
-        UserDefaults.standard.set(selectedDashboardID.uuidString, forKey: selectedKey)
+        defaults.set(selectedDashboardID.uuidString, forKey: selectedKey)
     }
 
     private static func migratedDashboards(from legacy: [DashboardLayout]) -> [DashboardLayout] {

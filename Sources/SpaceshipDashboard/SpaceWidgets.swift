@@ -4,16 +4,21 @@ struct GalaxyWidget: View {
     @Environment(\.astraTheme) private var theme
 
     var body: some View {
-        AnimationPhaseView(speed: 0.06) { phase in
+        AnimationPhaseView(speed: 0.06, frameRate: 1.0 / 20.0) { phase in
             GalaxyScene(phase: phase)
-                .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
-                .overlay(alignment: .bottomLeading) {
-                    HStack(spacing: 8) {
-                        HeaderChip(title: "SECTOR 7-ALPHA", color: .cyan)
-                        HeaderChip(title: "PARALLAX \(Int(phase * 360))", color: .violet)
-                    }
-                    .padding(12)
+        }
+        .drawingGroup()
+        .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+        .overlay(alignment: .bottomLeading) {
+            // Chips update at a slow tick of their own so the 20 Hz scene
+            // tick never re-diffs text views.
+            AnimationPhaseView(speed: 0.06, frameRate: 1.0 / 2.0) { phase in
+                HStack(spacing: 8) {
+                    HeaderChip(title: "SECTOR 7-ALPHA", color: .cyan)
+                    HeaderChip(title: "PARALLAX \(Int(phase * 360))", color: .violet)
                 }
+            }
+            .padding(12)
         }
     }
 }
@@ -63,9 +68,11 @@ struct GalaxyScene: View {
 
 struct PlanetOrbitWidget: View {
     var body: some View {
-        AnimationPhaseView(speed: 0.08) { phase in
-            VStack(spacing: 10) {
+        VStack(spacing: 10) {
+            AnimationPhaseView(speed: 0.08, frameRate: 1.0 / 20.0) { phase in
                 OrbitCanvas(phase: phase)
+            }
+            AnimationPhaseView(speed: 0.08, frameRate: 1.0 / 2.0) { phase in
                 HStack(spacing: 8) {
                     MicroStat(label: "ORBIT", value: "\(Int(phase * 360)) DEG", color: .cyan)
                     MicroStat(label: "BODY", value: "5 LOCKED", color: .gold)
@@ -110,46 +117,54 @@ struct OrbitCanvas: View {
 
 struct StarMapWidget: View {
     var body: some View {
-        AnimationPhaseView(speed: 0.12) { phase in
-            VStack(spacing: 10) {
-                StarMapCanvas(phase: phase)
-                    .frame(minHeight: 190)
-                MetricLine(label: "Route", value: "AR-42 / DELTA", progress: 0.72, color: .cyan)
-            }
+        VStack(spacing: 10) {
+            StarMapCanvas()
+                .frame(minHeight: 190)
+            MetricLine(label: "Route", value: "AR-42 / DELTA", progress: 0.72, color: .cyan)
         }
     }
 }
 
+/// Stars and constellation links are static — drawn once, invalidated only
+/// on theme change. The route's flowing dashes are a Core Animation layer,
+/// so the widget has no timeline at all.
 struct StarMapCanvas: View {
     @Environment(\.astraTheme) private var theme
-    var phase: Double
+    @Environment(\.astraAnimationsPaused) private var animationsPaused
+
+    private static let routePoints = [
+        CGPoint(x: 0.12, y: 0.72),
+        CGPoint(x: 0.28, y: 0.48),
+        CGPoint(x: 0.50, y: 0.56),
+        CGPoint(x: 0.72, y: 0.32),
+        CGPoint(x: 0.88, y: 0.38)
+    ]
 
     var body: some View {
-        Canvas { context, size in
-            let stars = seededPoints(count: 58, in: size)
-            for pair in stride(from: 0, to: stars.count - 1, by: 5) {
-                var path = Path()
-                path.move(to: stars[pair])
-                path.addLine(to: stars[(pair + 3) % stars.count])
-                context.stroke(path, with: .color(theme.color(.cyan).opacity(0.18)), lineWidth: 1)
-            }
+        ZStack {
+            Canvas { context, size in
+                let stars = seededPoints(count: 58, in: size)
+                for pair in stride(from: 0, to: stars.count - 1, by: 5) {
+                    var path = Path()
+                    path.move(to: stars[pair])
+                    path.addLine(to: stars[(pair + 3) % stars.count])
+                    context.stroke(path, with: .color(theme.color(.cyan).opacity(0.18)), lineWidth: 1)
+                }
 
-            var route = Path()
-            let routePoints = [CGPoint(x: size.width * 0.12, y: size.height * 0.72),
-                               CGPoint(x: size.width * 0.28, y: size.height * 0.48),
-                               CGPoint(x: size.width * 0.50, y: size.height * 0.56),
-                               CGPoint(x: size.width * 0.72, y: size.height * 0.32),
-                               CGPoint(x: size.width * 0.88, y: size.height * 0.38)]
-            for (index, point) in routePoints.enumerated() {
-                if index == 0 { route.move(to: point) } else { route.addLine(to: point) }
+                for (index, star) in stars.enumerated() {
+                    let radius = CGFloat(index.isMultiple(of: 11) ? 3.4 : 1.8)
+                    let color = index.isMultiple(of: 11) ? theme.color(.rose) : theme.palette.text
+                    context.fill(Path(ellipseIn: CGRect(x: star.x - radius, y: star.y - radius, width: radius * 2, height: radius * 2)), with: .color(color.opacity(0.86)))
+                }
             }
-            context.stroke(route, with: .color(theme.color(.gold)), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [9, 6], dashPhase: phase * 20))
-
-            for (index, star) in stars.enumerated() {
-                let radius = CGFloat(index.isMultiple(of: 11) ? 3.4 : 1.8)
-                let color = index.isMultiple(of: 11) ? theme.color(.rose) : theme.palette.text
-                context.fill(Path(ellipseIn: CGRect(x: star.x - radius, y: star.y - radius, width: radius * 2, height: radius * 2)), with: .color(color.opacity(0.86)))
-            }
+            DashFlowOverlay(
+                lines: [Self.routePoints],
+                color: theme.color(.gold),
+                lineWidth: 3,
+                dash: [9, 6],
+                cycleDuration: 6.25 / theme.animationIntensity,
+                paused: animationsPaused
+            )
         }
     }
 
@@ -166,55 +181,57 @@ struct StarMapCanvas: View {
 
 struct TacticalSweepWidget: View {
     var body: some View {
-        AnimationPhaseView(speed: 0.16) { phase in
-            VStack(spacing: 12) {
-                TacticalSweepCanvas(phase: phase)
-                    .frame(minHeight: 210)
+        VStack(spacing: 12) {
+            TacticalSweepCanvas()
+                .frame(minHeight: 210)
+            AnimationPhaseView(speed: 0.16, frameRate: 1.0 / 2.0) { phase in
                 MetricLine(label: "Contacts", value: "\(12 + Int(phase * 5))", progress: 0.64, color: .mint)
             }
         }
     }
 }
 
+/// Rings, spokes, and contacts are a static Canvas; the rotating sweep is
+/// a Core Animation layer driven entirely by the render server.
 struct TacticalSweepCanvas: View {
     @Environment(\.astraTheme) private var theme
-    var phase: Double
+    @Environment(\.astraAnimationsPaused) private var animationsPaused
 
     var body: some View {
-        Canvas { context, size in
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = min(size.width, size.height) * 0.44
+        ZStack {
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) * 0.44
 
-            for ring in 1...5 {
-                context.stroke(
-                    Path(ellipseIn: CGRect(x: center.x - radius * CGFloat(ring) / 5, y: center.y - radius * CGFloat(ring) / 5, width: radius * 2 * CGFloat(ring) / 5, height: radius * 2 * CGFloat(ring) / 5)),
-                    with: .color(theme.color(.cyan).opacity(0.14)),
-                    lineWidth: 1
-                )
+                for ring in 1...5 {
+                    context.stroke(
+                        Path(ellipseIn: CGRect(x: center.x - radius * CGFloat(ring) / 5, y: center.y - radius * CGFloat(ring) / 5, width: radius * 2 * CGFloat(ring) / 5, height: radius * 2 * CGFloat(ring) / 5)),
+                        with: .color(theme.color(.cyan).opacity(0.14)),
+                        lineWidth: 1
+                    )
+                }
+
+                for spoke in 0..<12 {
+                    let angle = Double(spoke) / 12 * .pi * 2
+                    var path = Path()
+                    path.move(to: center)
+                    path.addLine(to: CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius))
+                    context.stroke(path, with: .color(theme.palette.text.opacity(0.07)), lineWidth: 1)
+                }
+
+                for contact in 0..<14 {
+                    let angle = Double(contact * 73) * .pi / 180
+                    let distance = radius * CGFloat(0.18 + Double((contact * 29) % 70) / 100)
+                    let point = CGPoint(x: center.x + cos(angle) * distance, y: center.y + sin(angle) * distance)
+                    let rect = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
+                    context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(contact.isMultiple(of: 4) ? theme.color(.rose) : theme.color(.gold)))
+                }
             }
-
-            for spoke in 0..<12 {
-                let angle = Double(spoke) / 12 * .pi * 2
-                var path = Path()
-                path.move(to: center)
-                path.addLine(to: CGPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius))
-                context.stroke(path, with: .color(theme.palette.text.opacity(0.07)), lineWidth: 1)
-            }
-
-            let sweepAngle = phase * .pi * 2 - .pi / 2
-            var sweep = Path()
-            sweep.move(to: center)
-            sweep.addArc(center: center, radius: radius, startAngle: .radians(sweepAngle - 0.35), endAngle: .radians(sweepAngle), clockwise: false)
-            sweep.closeSubpath()
-            context.fill(sweep, with: .color(theme.color(.mint).opacity(0.22)))
-
-            for contact in 0..<14 {
-                let angle = Double(contact * 73) * .pi / 180
-                let distance = radius * CGFloat(0.18 + Double((contact * 29) % 70) / 100)
-                let point = CGPoint(x: center.x + cos(angle) * distance, y: center.y + sin(angle) * distance)
-                let rect = CGRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8)
-                context.fill(Path(roundedRect: rect, cornerRadius: 2), with: .color(contact.isMultiple(of: 4) ? theme.color(.rose) : theme.color(.gold)))
-            }
+            SweepOverlay(
+                color: theme.color(.mint).opacity(0.22),
+                period: 6.25 / theme.animationIntensity,
+                paused: animationsPaused
+            )
         }
     }
 }

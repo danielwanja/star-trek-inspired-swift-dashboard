@@ -42,6 +42,8 @@ struct LiveDataSnapshot: Equatable, Sendable {
 }
 
 final class SystemSampler {
+    // mach_host_self() inserts a send right on every call; cache one.
+    private let host = mach_host_self()
     private var lastCpuTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64)?
     private var lastPerCoreTicks: [(user: UInt32, system: UInt32, idle: UInt32, nice: UInt32)]?
     private var lastNetworkBytes: (input: UInt64, output: UInt64, time: Date)?
@@ -76,7 +78,7 @@ final class SystemSampler {
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.size / MemoryLayout<integer_t>.size)
         let result = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+                host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count)
             }
         }
 
@@ -110,7 +112,7 @@ final class SystemSampler {
         var numCpuInfo: mach_msg_type_number_t = 0
 
         let result = host_processor_info(
-            mach_host_self(),
+            host,
             PROCESSOR_CPU_LOAD_INFO,
             &numCPUs,
             &cpuInfo,
@@ -123,7 +125,9 @@ final class SystemSampler {
 
         defer {
             let size = vm_size_t(numCpuInfo) * vm_size_t(MemoryLayout<integer_t>.size)
-            vm_deallocate(mach_host_self(), vm_address_t(bitPattern: cpuInfo), size)
+            // The buffer lives in this task's address space; deallocating via
+            // the host port fails silently and leaks it every sample.
+            vm_deallocate(mach_task_self_, vm_address_t(bitPattern: cpuInfo), size)
         }
 
         let loadInfoCount = MemoryLayout<processor_cpu_load_info>.size / MemoryLayout<integer_t>.size
@@ -163,7 +167,7 @@ final class SystemSampler {
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size)
         let result = withUnsafeMutablePointer(to: &stats) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                host_statistics64(host, HOST_VM_INFO64, $0, &count)
             }
         }
 
@@ -173,7 +177,7 @@ final class SystemSampler {
         }
 
         var rawPageSize: vm_size_t = 0
-        host_page_size(mach_host_self(), &rawPageSize)
+        host_page_size(host, &rawPageSize)
         let pageSize = Double(rawPageSize)
         let free = Double(stats.free_count + stats.inactive_count) * pageSize
         let speculative = Double(stats.speculative_count) * pageSize
@@ -247,6 +251,11 @@ final class SystemSampler {
         var threadCount: mach_msg_type_number_t = 0
         let threadResult = task_threads(mach_task_self_, &threads, &threadCount)
         if threadResult == KERN_SUCCESS, let threads {
+            // Each entry is a port right that must be released individually,
+            // or the task leaks one right per thread per sample.
+            for index in 0..<Int(threadCount) {
+                mach_port_deallocate(mach_task_self_, threads[index])
+            }
             vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threads)), vm_size_t(threadCount) * vm_size_t(MemoryLayout<thread_t>.stride))
         }
 
@@ -284,20 +293,17 @@ actor SystemTelemetrySampler {
     }
 }
 
+/// Clock and telemetry are separate observable properties so a widget that
+/// only shows the time doesn't re-render when CPU numbers change, and a
+/// gauge that only reads telemetry doesn't re-render on clock ticks.
 @MainActor
-final class LiveDataHub: ObservableObject {
-    @Published private var snapshot = LiveDataSnapshot.placeholder
+@Observable
+final class LiveDataHub {
+    private(set) var now = Date()
+    private(set) var telemetry = SystemTelemetry.placeholder
 
-    private let sampler = SystemTelemetrySampler()
-    private var telemetryTask: Task<Void, Never>?
-
-    var now: Date {
-        snapshot.now
-    }
-
-    var telemetry: SystemTelemetry {
-        snapshot.telemetry
-    }
+    @ObservationIgnored private let sampler = SystemTelemetrySampler()
+    @ObservationIgnored private var telemetryTask: Task<Void, Never>?
 
     func start() {
         guard telemetryTask == nil else { return }
@@ -306,7 +312,7 @@ final class LiveDataHub: ObservableObject {
                 let telemetry = await sampler.sample()
                 let snapshot = LiveDataSnapshot(now: Date(), telemetry: telemetry)
                 await MainActor.run { [weak self] in
-                    self?.snapshot = snapshot
+                    self?.apply(snapshot)
                 }
 
                 do {
@@ -321,5 +327,12 @@ final class LiveDataHub: ObservableObject {
     func stop() {
         telemetryTask?.cancel()
         telemetryTask = nil
+    }
+
+    private func apply(_ snapshot: LiveDataSnapshot) {
+        now = snapshot.now
+        if telemetry != snapshot.telemetry {
+            telemetry = snapshot.telemetry
+        }
     }
 }

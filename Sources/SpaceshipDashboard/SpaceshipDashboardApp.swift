@@ -21,17 +21,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct SpaceshipDashboardApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var store = DashboardStore()
-    @StateObject private var liveData = LiveDataHub()
+    @State private var store: DashboardStore
+    @State private var liveData = LiveDataHub()
+    @State private var transition: DashboardTransitionController
+
+    init() {
+        let store = DashboardStore()
+        _store = State(initialValue: store)
+        _transition = State(initialValue: DashboardTransitionController(initialID: store.selectedDashboardID))
+    }
 
     var body: some Scene {
         WindowGroup {
             DashboardRootView()
-                .environmentObject(store)
-                .environmentObject(liveData)
+                .environment(store)
+                .environment(liveData)
+                .environment(transition)
                 .frame(minWidth: 1180, minHeight: 760)
                 .onAppear { liveData.start() }
-                .onDisappear { liveData.stop() }
+                .onDisappear {
+                    liveData.stop()
+                    store.flushSave()
+                }
         }
         .defaultSize(width: 1440, height: 900)
         .windowStyle(.hiddenTitleBar)
