@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "SpaceshipDashboard",
             path: "Sources/SpaceshipDashboard"
+        ),
+        .testTarget(
+            name: "SpaceshipDashboardTests",
+            dependencies: ["SpaceshipDashboard"],
+            path: "Tests/SpaceshipDashboardTests"
         )
     ]
 )

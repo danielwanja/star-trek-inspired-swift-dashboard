@@ -8,6 +8,18 @@ struct DashboardRootView: View {
     @State private var dashboardSwitchTask: Task<Void, Never>?
     @State private var builderToggleTask: Task<Void, Never>?
 
+    static func animationPauseReasons(
+        isBuilderVisible: Bool,
+        isBooting: Bool,
+        isSettling: Bool
+    ) -> Set<AnimationPauseReason> {
+        var reasons: Set<AnimationPauseReason> = []
+        if isBuilderVisible { reasons.insert(.builderVisible) }
+        if isBooting { reasons.insert(.booting) }
+        if isSettling { reasons.insert(.settling) }
+        return reasons
+    }
+
     var body: some View {
         let theme = store.astraTheme
         let displayedDashboard = dashboard(for: displayedDashboardID ?? store.selectedDashboardID)

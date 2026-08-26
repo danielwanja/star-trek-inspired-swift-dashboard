@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum AnimationPauseReason: Hashable {
+    case builderVisible
+    case booting
+    case settling
+}
+
 private struct AstraAnimationsPausedKey: EnvironmentKey {
     static let defaultValue = false
 }
