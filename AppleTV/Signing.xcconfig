@@ -1,0 +1,11 @@
+// Signing settings for the tvOS target. Committed defaults are empty so the
+// project builds for the simulator out of the box; to run on a real Apple
+// TV, create Signing.local.xcconfig next to this file (git-ignored) with:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+//     PRODUCT_BUNDLE_IDENTIFIER = com.example.spaceship-dashboard.tv   (optional)
+//
+// The optional include below picks it up automatically.
+#include? "Signing.local.xcconfig"
+
+CODE_SIGN_STYLE = Automatic
