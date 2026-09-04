@@ -38,3 +38,8 @@ Podfile.lock
 .env
 .env.local
 *.log
+
+# tvOS receiver project (Xcode projects are ignored above; this one is checked in)
+!AppleTV/SpaceshipDashboardTV.xcodeproj/
+!AppleTV/SpaceshipDashboardTV.xcodeproj/project.pbxproj
+!AppleTV/SpaceshipDashboardTV.xcodeproj/xcshareddata/

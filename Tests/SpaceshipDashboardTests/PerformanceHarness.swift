@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import Observation
-@testable import SpaceshipDashboard
+@testable import AstraConsole
 
 // Budgets are deliberately tight: the synchronous portion of these calls
 // should be near-instant. Anything that costs more than a few ms (artificial

@@ -172,6 +172,42 @@ final class DashboardStore {
         selectedDashboard = dashboard
     }
 
+    // MARK: Sync
+
+    /// Snapshot of everything a receiver needs to mirror this console.
+    var consoleState: ConsoleState {
+        ConsoleState(dashboards: dashboards, selectedDashboardID: selectedDashboardID, themeID: selectedThemeID)
+    }
+
+    /// Mirror the state pushed by a Mac. Applied verbatim (no default
+    /// merging) and persisted, so the receiver still shows the last known
+    /// layouts when the Mac goes away.
+    func applyRemoteState(_ state: ConsoleState) {
+        guard !state.dashboards.isEmpty else { return }
+        if dashboards != state.dashboards {
+            dashboards = state.dashboards
+            save()
+        }
+        let selected = state.dashboards.contains(where: { $0.id == state.selectedDashboardID })
+            ? state.selectedDashboardID
+            : state.dashboards[0].id
+        if selectedDashboardID != selected {
+            selectedDashboardID = selected
+            saveSelection()
+        }
+        if selectedThemeID != state.themeID {
+            selectTheme(state.themeID)
+        }
+    }
+
+    /// Select the dashboard after (or before) the current one; wraps around.
+    func selectAdjacentDashboard(offset: Int) {
+        guard let index = dashboards.firstIndex(where: { $0.id == selectedDashboardID }), !dashboards.isEmpty else { return }
+        let count = dashboards.count
+        let target = ((index + offset) % count + count) % count
+        select(dashboards[target])
+    }
+
     // Debounced: rapid mutations (typing a name, dragging sizes) collapse
     // into one encode + write instead of one per keystroke.
     private func save() {

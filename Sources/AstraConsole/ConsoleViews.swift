@@ -1,8 +1,11 @@
 import SwiftUI
 
+#if os(macOS)
 struct DashboardRootView: View {
     @Environment(DashboardStore.self) private var store
     @Environment(DashboardTransitionController.self) private var transition
+    @Environment(PresentationController.self) private var presentation
+    @Environment(ConsoleSyncPublisher.self) private var sync
     @State private var bootingDashboard: DashboardLayout?
     @State private var bootTask: Task<Void, Never>?
 
@@ -33,22 +36,37 @@ struct DashboardRootView: View {
         ZStack {
             ConsoleBackground()
             VStack(spacing: theme.metrics.gap) {
-                CommandHeader(dashboard: presentationDashboard, onToggleBuilder: toggleBuilderPanel)
+                CommandHeader(
+                    dashboard: presentationDashboard,
+                    onToggleBuilder: toggleBuilderPanel,
+                    onTogglePresentation: { presentation.toggle() },
+                    presentationLabel: presentation.isPresenting ? "CAST ON" : "CAST",
+                    linkStatus: sync.isLinked
+                        ? HeaderStatus(title: "TV \(sync.receiverCount)", color: .cyan)
+                        : nil
+                )
                 HStack(alignment: .top, spacing: theme.metrics.gap) {
                     ConsoleSidebar(
                         activeDashboardID: presentationDashboard.id,
                         onSelectDashboard: beginDashboardSwitch
                     )
                     ZStack {
-                        DashboardCanvas(
-                            dashboard: displayedDashboard,
-                            isBuilderVisible: store.isBuilderVisible,
-                            onResizeWidget: { widget, size in store.resizeWidget(widget, to: size) },
-                            onRemoveWidget: { widget in store.removeWidget(widget) }
-                        )
-                        .id(displayedDashboard.id)
+                        // While presenting, the widgets live only in the
+                        // presentation window: this window turns into a
+                        // remote so the tick/draw work is not doubled.
+                        if presentation.isPresenting {
+                            PresentationRemotePanel(dashboard: displayedDashboard)
+                        } else {
+                            DashboardCanvas(
+                                dashboard: displayedDashboard,
+                                isBuilderVisible: store.isBuilderVisible,
+                                onResizeWidget: { widget, size in store.resizeWidget(widget, to: size) },
+                                onRemoveWidget: { widget in store.removeWidget(widget) }
+                            )
+                            .id(displayedDashboard.id)
+                        }
 
-                        if let bootingDashboard {
+                        if let bootingDashboard, !presentation.isPresenting {
                             DashboardBootSequence(dashboard: bootingDashboard)
                                 .id(bootingDashboard.id)
                                 .transition(.opacity)
@@ -102,6 +120,7 @@ struct DashboardRootView: View {
         }
     }
 }
+#endif
 
 struct ConsoleBackground: View {
     @Environment(\.astraTheme) private var theme
@@ -248,12 +267,25 @@ struct DashboardBootSequence: View {
     }
 }
 
+struct HeaderStatus: Equatable {
+    var title: String
+    var color: AstraColorRole
+}
+
 struct CommandHeader: View {
     @Environment(DashboardStore.self) private var store
     @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
     var dashboard: DashboardLayout
-    var onToggleBuilder: () -> Void
+    /// Builder toggle; `nil` hides the EDIT control (presentation surfaces).
+    var onToggleBuilder: (() -> Void)? = nil
+    /// External-display toggle; `nil` hides the CAST control.
+    var onTogglePresentation: (() -> Void)? = nil
+    var presentationLabel: String = "CAST"
+    /// Extra chip after the telemetry (sync link state on either end).
+    var linkStatus: HeaderStatus? = nil
+
+    private var isInteractive: Bool { onToggleBuilder != nil }
 
     var body: some View {
         HStack(spacing: theme.metrics.gap) {
@@ -271,23 +303,42 @@ struct CommandHeader: View {
             HeaderChip(title: "CPU \(Formatters.percent(liveData.telemetry.cpuUsage))", color: .gold)
             HeaderChip(title: "MEM \(Formatters.percent(liveData.telemetry.memoryPressure))", color: .rose)
             HeaderChip(title: "NET \(Formatters.rate(liveData.telemetry.networkInRate + liveData.telemetry.networkOutRate))", color: .cyan)
-            Button {
-                withAnimation(.snappy(duration: 0.18)) {
-                    store.selectNextTheme()
+            if let linkStatus {
+                HeaderChip(title: linkStatus.title, color: linkStatus.color)
+            }
+            if isInteractive {
+                Button {
+                    withAnimation(.snappy(duration: 0.18)) {
+                        store.selectNextTheme()
+                    }
+                } label: {
+                    HeaderChip(title: "THEME \(store.selectedThemeID.shortTitle)", color: .mint)
                 }
-            } label: {
+                .buttonStyle(.plain)
+                .help("Cycle Astra console theme")
+            } else {
                 HeaderChip(title: "THEME \(store.selectedThemeID.shortTitle)", color: .mint)
             }
-            .buttonStyle(.plain)
-            .help("Cycle Astra console theme")
-            Button {
-                onToggleBuilder()
-            } label: {
-                Text(store.isBuilderVisible ? "EDIT ON" : "EDIT")
-                    .frame(width: 66, height: 34)
+            if let onTogglePresentation {
+                Button {
+                    onTogglePresentation()
+                } label: {
+                    Text(presentationLabel)
+                        .frame(width: 74, height: 34)
+                }
+                .buttonStyle(ConsoleTextButtonStyle(color: .cyan))
+                .help("Present on an external display (AirPlay to Apple TV)")
             }
-            .buttonStyle(ConsoleTextButtonStyle(color: .rose))
-            .help("Toggle builder")
+            if let onToggleBuilder {
+                Button {
+                    onToggleBuilder()
+                } label: {
+                    Text(store.isBuilderVisible ? "EDIT ON" : "EDIT")
+                        .frame(width: 66, height: 34)
+                }
+                .buttonStyle(ConsoleTextButtonStyle(color: .rose))
+                .help("Toggle builder")
+            }
         }
         .frame(height: 68)
     }

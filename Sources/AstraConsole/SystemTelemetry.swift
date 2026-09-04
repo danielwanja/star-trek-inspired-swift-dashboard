@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-struct SystemTelemetry: Equatable, Sendable {
+struct SystemTelemetry: Equatable, Sendable, Codable {
     var cpuUsage: Double
     var cpuCoreUsage: [Double]
     var memoryUsed: Double
@@ -31,7 +31,7 @@ struct SystemTelemetry: Equatable, Sendable {
     )
 }
 
-struct LiveDataSnapshot: Equatable, Sendable {
+struct LiveDataSnapshot: Equatable, Sendable, Codable {
     var now: Date
     var telemetry: SystemTelemetry
 
@@ -41,6 +41,9 @@ struct LiveDataSnapshot: Equatable, Sendable {
     )
 }
 
+#if os(macOS)
+// The Darwin sampler only runs on the Mac; the tvOS receiver gets its
+// telemetry over the network (see Sync/).
 final class SystemSampler {
     // mach_host_self() inserts a send right on every call; cache one.
     private let host = mach_host_self()
@@ -292,29 +295,93 @@ actor SystemTelemetrySampler {
         sampler.sample()
     }
 }
+#endif
 
 /// Clock and telemetry are separate observable properties so a widget that
 /// only shows the time doesn't re-render when CPU numbers change, and a
 /// gauge that only reads telemetry doesn't re-render on clock ticks.
+///
+/// The hub has two sources: the local Darwin sampler (the Mac) or a remote
+/// feed (the Apple TV receiving snapshots from a Mac over Bonjour). In
+/// remote mode the clock still ticks locally so the time widgets never
+/// stall when the link drops; only the telemetry comes from the network.
 @MainActor
 @Observable
 final class LiveDataHub {
+    enum Source: Sendable {
+        case localSampler
+        case remote
+    }
+
     private(set) var now = Date()
     private(set) var telemetry = SystemTelemetry.placeholder
+    /// When the last remote snapshot arrived; `nil` until the first one.
+    private(set) var lastRemoteSnapshotAt: Date?
 
+    let source: Source
+
+    #if os(macOS)
     @ObservationIgnored private let sampler = SystemTelemetrySampler()
+    #endif
     @ObservationIgnored private var telemetryTask: Task<Void, Never>?
+
+    init(source: Source = .localSampler) {
+        self.source = source
+    }
 
     func start() {
         guard telemetryTask == nil else { return }
-        telemetryTask = Task { @concurrent [sampler] in
-            while !Task.isCancelled {
-                let telemetry = await sampler.sample()
-                let snapshot = LiveDataSnapshot(now: Date(), telemetry: telemetry)
-                await MainActor.run { [weak self] in
-                    self?.apply(snapshot)
-                }
+        switch source {
+        case .localSampler:
+            #if os(macOS)
+            telemetryTask = Task { @concurrent [sampler] in
+                while !Task.isCancelled {
+                    let telemetry = await sampler.sample()
+                    let snapshot = LiveDataSnapshot(now: Date(), telemetry: telemetry)
+                    await MainActor.run { [weak self] in
+                        self?.apply(snapshot)
+                    }
 
+                    do {
+                        try await Task.sleep(for: .seconds(1))
+                    } catch {
+                        break
+                    }
+                }
+            }
+            #else
+            // No local sampler on this platform; behave like an idle remote feed.
+            startClock()
+            #endif
+        case .remote:
+            startClock()
+        }
+    }
+
+    func stop() {
+        telemetryTask?.cancel()
+        telemetryTask = nil
+    }
+
+    /// Feed a snapshot received from a remote Mac. Called on the main actor
+    /// by the sync layer after decoding off-main.
+    func applyRemote(_ snapshot: LiveDataSnapshot) {
+        lastRemoteSnapshotAt = Date()
+        if telemetry != snapshot.telemetry {
+            telemetry = snapshot.telemetry
+        }
+    }
+
+    /// True when a remote snapshot arrived recently enough to be trusted.
+    var isRemoteFeedLive: Bool {
+        guard let lastRemoteSnapshotAt else { return false }
+        return now.timeIntervalSince(lastRemoteSnapshotAt) < 5
+    }
+
+    private func startClock() {
+        telemetryTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.now = Date()
                 do {
                     try await Task.sleep(for: .seconds(1))
                 } catch {
@@ -322,11 +389,6 @@ final class LiveDataHub {
                 }
             }
         }
-    }
-
-    func stop() {
-        telemetryTask?.cancel()
-        telemetryTask = nil
     }
 
     private func apply(_ snapshot: LiveDataSnapshot) {

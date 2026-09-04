@@ -1,11 +1,11 @@
 import SwiftUI
-import AppKit
 import QuartzCore
 
 // Ambient loops (radar sweep, scrolling dashes) are rendered by Core
 // Animation. The animations run on the render server, so once installed
 // they cost zero app CPU per frame — no timeline ticks, no view diffing,
-// no Canvas rasterization.
+// no Canvas rasterization. The host view is AppKit on macOS and UIKit on
+// tvOS (see PlatformShims); the layer code is identical on both.
 
 // MARK: - Shared pause plumbing
 
@@ -28,40 +28,52 @@ private func setLayerPaused(_ paused: Bool, on layer: CALayer) {
 // MARK: - Radar sweep
 
 /// A rotating sensor-sweep wedge. `period` is seconds per revolution.
-struct SweepOverlay: NSViewRepresentable {
+struct SweepOverlay {
     var color: Color
     var period: Double
     var paused: Bool
 
+    @MainActor fileprivate func apply(to view: SweepLayerView) {
+        view.configure(color: PlatformColor(color), period: period)
+        view.setPaused(paused)
+    }
+}
+
+#if canImport(AppKit)
+extension SweepOverlay: NSViewRepresentable {
     func makeNSView(context: Context) -> SweepLayerView {
         let view = SweepLayerView()
-        view.configure(color: NSColor(color), period: period)
-        view.setPaused(paused)
+        apply(to: view)
         return view
     }
 
     func updateNSView(_ nsView: SweepLayerView, context: Context) {
-        nsView.configure(color: NSColor(color), period: period)
-        nsView.setPaused(paused)
+        apply(to: nsView)
     }
 }
+#else
+extension SweepOverlay: UIViewRepresentable {
+    func makeUIView(context: Context) -> SweepLayerView {
+        let view = SweepLayerView()
+        apply(to: view)
+        return view
+    }
 
-final class SweepLayerView: NSView {
+    func updateUIView(_ uiView: SweepLayerView, context: Context) {
+        apply(to: uiView)
+    }
+}
+#endif
+
+final class SweepLayerView: LayerHostView {
     private let wedge = CAShapeLayer()
     private var period: Double = 0
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.addSublayer(wedge)
+    override func hostLayerDidLoad() {
+        hostLayer.addSublayer(wedge)
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    func configure(color: NSColor, period: Double) {
+    func configure(color: PlatformColor, period: Double) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         wedge.fillColor = color.cgColor
@@ -73,12 +85,10 @@ final class SweepLayerView: NSView {
     }
 
     func setPaused(_ paused: Bool) {
-        guard let layer else { return }
-        setLayerPaused(paused, on: layer)
+        setLayerPaused(paused, on: hostLayer)
     }
 
-    override func layout() {
-        super.layout()
+    override func layoutLayers() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         wedge.frame = bounds
@@ -92,13 +102,8 @@ final class SweepLayerView: NSView {
         CATransaction.commit()
     }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        // SwiftUI can detach and reattach the backing view; CA drops
-        // animations from detached layers, so reinstall on attach.
-        if window != nil {
-            installAnimation()
-        }
+    override func attachedToWindow() {
+        installAnimation()
     }
 
     private func installAnimation() {
@@ -106,7 +111,9 @@ final class SweepLayerView: NSView {
         guard period > 0 else { return }
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.fromValue = 0.0
-        spin.toValue = -2.0 * Double.pi
+        // Layer y-axes point in opposite directions on the two platforms;
+        // flip the sign so the sweep turns the same way on screen.
+        spin.toValue = flipsY ? -2.0 * Double.pi : 2.0 * Double.pi
         spin.duration = period
         spin.repeatCount = .infinity
         spin.isRemovedOnCompletion = false
@@ -119,7 +126,7 @@ final class SweepLayerView: NSView {
 /// Polylines with a continuously scrolling dash pattern (routes, power
 /// conduits). Points are normalized to the unit square with a top-left
 /// origin, matching SwiftUI's coordinate space.
-struct DashFlowOverlay: NSViewRepresentable {
+struct DashFlowOverlay {
     var lines: [[CGPoint]]
     var color: Color
     var lineWidth: CGFloat
@@ -128,6 +135,20 @@ struct DashFlowOverlay: NSViewRepresentable {
     var cycleDuration: Double
     var paused: Bool
 
+    @MainActor fileprivate func apply(to view: DashFlowLayerView) {
+        view.configure(
+            lines: lines,
+            color: PlatformColor(color),
+            lineWidth: lineWidth,
+            dash: dash,
+            cycleDuration: cycleDuration
+        )
+        view.setPaused(paused)
+    }
+}
+
+#if canImport(AppKit)
+extension DashFlowOverlay: NSViewRepresentable {
     func makeNSView(context: Context) -> DashFlowLayerView {
         let view = DashFlowLayerView()
         apply(to: view)
@@ -137,40 +158,35 @@ struct DashFlowOverlay: NSViewRepresentable {
     func updateNSView(_ nsView: DashFlowLayerView, context: Context) {
         apply(to: nsView)
     }
+}
+#else
+extension DashFlowOverlay: UIViewRepresentable {
+    func makeUIView(context: Context) -> DashFlowLayerView {
+        let view = DashFlowLayerView()
+        apply(to: view)
+        return view
+    }
 
-    private func apply(to view: DashFlowLayerView) {
-        view.configure(
-            lines: lines,
-            color: NSColor(color),
-            lineWidth: lineWidth,
-            dash: dash,
-            cycleDuration: cycleDuration
-        )
-        view.setPaused(paused)
+    func updateUIView(_ uiView: DashFlowLayerView, context: Context) {
+        apply(to: uiView)
     }
 }
+#endif
 
-final class DashFlowLayerView: NSView {
+final class DashFlowLayerView: LayerHostView {
     private let shape = CAShapeLayer()
     private var normalizedLines: [[CGPoint]] = []
     private var cycleDuration: Double = 0
     private var dashSum: CGFloat = 0
 
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
+    override func hostLayerDidLoad() {
         shape.fillColor = nil
         shape.lineCap = .round
         shape.lineJoin = .round
-        layer?.addSublayer(shape)
+        hostLayer.addSublayer(shape)
     }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    func configure(lines: [[CGPoint]], color: NSColor, lineWidth: CGFloat, dash: [CGFloat], cycleDuration: Double) {
+    func configure(lines: [[CGPoint]], color: PlatformColor, lineWidth: CGFloat, dash: [CGFloat], cycleDuration: Double) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         shape.strokeColor = color.cgColor
@@ -181,7 +197,11 @@ final class DashFlowLayerView: NSView {
         let sum = dash.reduce(0, +)
         if normalizedLines != lines {
             normalizedLines = lines
+            #if canImport(AppKit)
             needsLayout = true
+            #else
+            setNeedsLayout()
+            #endif
         }
         if self.cycleDuration != cycleDuration || dashSum != sum {
             self.cycleDuration = cycleDuration
@@ -191,37 +211,27 @@ final class DashFlowLayerView: NSView {
     }
 
     func setPaused(_ paused: Bool) {
-        guard let layer else { return }
-        setLayerPaused(paused, on: layer)
+        setLayerPaused(paused, on: hostLayer)
     }
 
-    override func layout() {
-        super.layout()
+    override func layoutLayers() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         shape.frame = bounds
         let path = CGMutablePath()
         for line in normalizedLines {
             guard let first = line.first else { continue }
-            path.move(to: point(first))
+            path.move(to: layerPoint(first))
             for point in line.dropFirst() {
-                path.addLine(to: self.point(point))
+                path.addLine(to: layerPoint(point))
             }
         }
         shape.path = path
         CATransaction.commit()
     }
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window != nil {
-            installAnimation()
-        }
-    }
-
-    private func point(_ normalized: CGPoint) -> CGPoint {
-        // Flip y: the layer's origin is bottom-left, inputs are top-left.
-        CGPoint(x: normalized.x * bounds.width, y: (1 - normalized.y) * bounds.height)
+    override func attachedToWindow() {
+        installAnimation()
     }
 
     private func installAnimation() {
