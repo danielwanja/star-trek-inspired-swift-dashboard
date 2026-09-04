@@ -73,7 +73,7 @@ Latency is that of AirPlay display mirroring (a fraction of a second). macOS has
 The Apple TV app renders the same console natively at 60 fps and needs only ~1 KB/s from the Mac: the Mac advertises itself over Bonjour (`_spaceship._tcp`) and pushes a telemetry snapshot once a second plus the layouts, selection and theme whenever they change. The Apple TV keeps the last synced layouts, so the Set Playback and Astrometrics decks work even with the Mac asleep; the system widgets show placeholder values until a Mac is back.
 
 - Build and run in the tvOS Simulator with `./run-tv.sh` (needs Xcode with a tvOS simulator runtime).
-- For a real Apple TV, open `AppleTV/SpaceshipDashboardTV.xcodeproj`, set your team under Signing & Capabilities, pair the Apple TV in Xcode (Devices and Simulators) and run. The first launch asks for local-network permission, which the receiver needs to find the Mac.
+- For a real Apple TV, create `AppleTV/Signing.local.xcconfig` (git-ignored) containing `DEVELOPMENT_TEAM = <your team ID>` — and optionally your own `PRODUCT_BUNDLE_IDENTIFIER` — then open `AppleTV/SpaceshipDashboardTV.xcodeproj`, pair the Apple TV in Xcode (Devices and Simulators) and run. Signing lives in `AppleTV/Signing.xcconfig`, so the project file never needs editing. The first launch asks for local-network permission, which the receiver needs to find the Mac.
 - The Siri Remote works as a second remote control: swipe or click left/right to change dashboards and press play/pause to cycle themes. When linked, the Mac follows.
 - The header chip on the TV shows the link state (`LINK · <mac name>`); on the Mac it shows `TV n` while receivers are connected.
 
