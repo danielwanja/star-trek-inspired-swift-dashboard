@@ -7,6 +7,7 @@ struct DashboardRootView: View {
     @Environment(PresentationController.self) private var presentation
     @Environment(ConsoleSyncPublisher.self) private var sync
     @State private var bootingDashboard: DashboardLayout?
+    @State private var bootStartedAt = Date()
     @State private var bootTask: Task<Void, Never>?
 
     /// Builder visibility and post-switch settling must never pause
@@ -67,7 +68,7 @@ struct DashboardRootView: View {
                         }
 
                         if let bootingDashboard, !presentation.isPresenting {
-                            DashboardBootSequence(dashboard: bootingDashboard)
+                            DashboardBootSequence(dashboard: bootingDashboard, startedAt: bootStartedAt)
                                 .id(bootingDashboard.id)
                                 .transition(.opacity)
                         }
@@ -104,9 +105,10 @@ struct DashboardRootView: View {
         // cosmetic overlay above the already-mounted new dashboard.
         transition.select(dashboard, in: store)
         bootTask?.cancel()
+        bootStartedAt = Date()
         bootingDashboard = dashboard
         bootTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: .seconds(DashboardBootSequence.defaultDuration))
             guard !Task.isCancelled else { return }
             withAnimation(.easeOut(duration: 0.16)) {
                 bootingDashboard = nil
@@ -128,10 +130,15 @@ struct ConsoleBackground: View {
     var body: some View {
         ZStack {
             theme.palette.screen
-            GridTexture()
-                .opacity(0.34)
+            switch theme.backdrop {
+            case .grid:
+                GridTexture()
+                    .opacity(0.34)
+            case .reticle:
+                ReticleTexture()
+            }
             ScanlineOverlay()
-                .opacity(0.08)
+                .opacity(theme.backdrop == .reticle ? 0.05 : 0.08)
             RadialGradient(
                 colors: [.clear, .black.opacity(0.42)],
                 center: .center,
@@ -203,9 +210,97 @@ struct GridTexture: View {
     }
 }
 
+/// Dot lattice with faint range rings and a horizon line: the static
+/// backdrop of holographic themes. Drawn once per size/theme (the
+/// background stack is flattened by `.drawingGroup()`).
+struct ReticleTexture: View {
+    @Environment(\.astraTheme) private var theme
+
+    var body: some View {
+        Canvas { context, size in
+            let major = theme.palette.gridMajor
+
+            // Dot lattice.
+            let step: CGFloat = 26
+            var dots = Path()
+            var y: CGFloat = step / 2
+            while y < size.height {
+                var x: CGFloat = step / 2
+                while x < size.width {
+                    dots.addEllipse(in: CGRect(x: x - 0.6, y: y - 0.6, width: 1.2, height: 1.2))
+                    x += step
+                }
+                y += step
+            }
+            context.fill(dots, with: .color(major.opacity(0.75)))
+
+            // Range rings around the console center.
+            let center = CGPoint(x: size.width * 0.5, y: size.height * 0.56)
+            var rings = Path()
+            var radius: CGFloat = 140
+            let maxRadius = hypot(size.width, size.height)
+            while radius < maxRadius {
+                rings.addEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+                radius += 180
+            }
+            context.stroke(rings, with: .color(major.opacity(0.7)), lineWidth: 1)
+
+            // Horizon line with graduation ticks.
+            let horizonY = size.height * 0.56
+            var horizon = Path()
+            horizon.move(to: CGPoint(x: 0, y: horizonY))
+            horizon.addLine(to: CGPoint(x: size.width, y: horizonY))
+            var ticks = Path()
+            var tx: CGFloat = 0
+            var index = 0
+            while tx <= size.width {
+                let length: CGFloat = index % 5 == 0 ? 10 : 5
+                ticks.move(to: CGPoint(x: tx, y: horizonY - length))
+                ticks.addLine(to: CGPoint(x: tx, y: horizonY + length))
+                tx += 36
+                index += 1
+            }
+            context.stroke(horizon, with: .color(major), lineWidth: 1)
+            context.stroke(ticks, with: .color(major.opacity(0.8)), lineWidth: 1)
+
+            // Corner brackets.
+            let inset: CGFloat = 22
+            let arm: CGFloat = 46
+            var brackets = Path()
+            for (sx, sy) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
+                let ox = sx > 0 ? inset : size.width - inset
+                let oy = sy > 0 ? inset : size.height - inset
+                brackets.move(to: CGPoint(x: ox + CGFloat(sx) * arm, y: oy))
+                brackets.addLine(to: CGPoint(x: ox, y: oy))
+                brackets.addLine(to: CGPoint(x: ox, y: oy + CGFloat(sy) * arm))
+            }
+            context.stroke(brackets, with: .color(theme.color(.cyan).opacity(0.45)), lineWidth: 1.5)
+        }
+    }
+}
+
+/// Boot flash shown while a dashboard switch settles. Progress is anchored
+/// to `startedAt`, so the bar, the log and the status blocks tell one
+/// coherent 0→100 % story over `duration` seconds.
 struct DashboardBootSequence: View {
     @Environment(\.astraTheme) private var theme
     var dashboard: DashboardLayout
+    var startedAt: Date = Date()
+    var duration: TimeInterval = 0.65
+
+    /// Seconds a dashboard switch keeps the boot flash on screen.
+    static let defaultDuration: TimeInterval = 0.65
+
+    private var bootLog: [String] {
+        [
+            "ROUTING \(dashboard.deckCode) · \(dashboard.name.uppercased())",
+            "LINKING TELEMETRY BUS",
+            "ALLOCATING \(dashboard.widgets.count) WIDGET LANES",
+            "THEME \(theme.id.title.uppercased()) LOADED",
+            "CALIBRATING DISPLAY SURFACE",
+            "COMMAND SURFACE READY"
+        ]
+    }
 
     var body: some View {
         AstraCFrame(
@@ -215,33 +310,39 @@ struct DashboardBootSequence: View {
             bottomLabel: dashboard.deckCode,
             railWidth: 150
         ) {
-            TimelineView(AlignedPeriodicSchedule(interval: 1.0 / 12.0, paused: false)) { timeline in
-                let phase = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
+            TimelineView(AlignedPeriodicSchedule(interval: 1.0 / 24.0, paused: false)) { timeline in
+                let progress = min(1, max(0, timeline.date.timeIntervalSince(startedAt) / duration))
+                let buffer = Int((progress * 9_999).rounded())
                 VStack(alignment: .leading, spacing: theme.metrics.gap) {
                     HStack(spacing: theme.metrics.fineGap) {
                         HeaderChip(title: "ROUTING \(dashboard.deckCode)", color: dashboard.accentRole)
-                        HeaderChip(title: "BUFFER \(Int(phase * 9_999))", color: .gold)
-                        HeaderChip(title: "MEMORY SAFE", color: .mint)
+                        HeaderChip(title: "BUFFER \(String(format: "%04d", buffer))", color: .gold)
+                        HeaderChip(title: progress < 1 ? "MEMORY SAFE" : "SURFACE LIVE", color: .mint)
                         Spacer()
                     }
 
                     VStack(alignment: .leading, spacing: 14) {
                         Text(dashboard.name.uppercased())
                             .font(theme.typography.display(size: 34))
+                            .tracking(theme.typography.displayTracking)
                             .lineLimit(1)
                             .minimumScaleFactor(0.62)
-                        Text("INITIALIZING COMMAND SURFACE")
+                        Text("INITIALIZING COMMAND SURFACE · \(Formatters.percent(progress))")
                             .font(theme.typography.data(size: 14))
                             .foregroundStyle(theme.color(.gold))
-                        SegmentedBar(progress: 0.24 + phase * 0.76, color: dashboard.accentRole, segments: 28)
+                        SegmentedBar(progress: progress, color: dashboard.accentRole, segments: 28)
                             .frame(maxWidth: 520)
                     }
 
-                    HStack(spacing: theme.metrics.fineGap) {
-                        bootBlock(label: "SYS", value: "LINK", color: .cyan)
-                        bootBlock(label: "NAV", value: "AUTH", color: .violet)
-                        bootBlock(label: "OPS", value: "SYNC", color: .rose)
-                        bootBlock(label: "LCARS", value: "READY", color: .apricot)
+                    HStack(alignment: .top, spacing: theme.metrics.gap) {
+                        HStack(spacing: theme.metrics.fineGap) {
+                            bootBlock(label: "SYS", value: "LINK", color: .cyan, lit: progress > 0.15)
+                            bootBlock(label: "NAV", value: "AUTH", color: .violet, lit: progress > 0.40)
+                            bootBlock(label: "OPS", value: "SYNC", color: .rose, lit: progress > 0.65)
+                            bootBlock(label: "LCARS", value: "READY", color: .apricot, lit: progress > 0.92)
+                        }
+                        BootLog(lines: bootLog, progress: progress, accent: dashboard.accentRole)
+                            .frame(maxWidth: 420, minHeight: 120, alignment: .topLeading)
                     }
 
                     Spacer()
@@ -251,19 +352,56 @@ struct DashboardBootSequence: View {
         }
     }
 
-    private func bootBlock(label: String, value: String, color: AstraColorRole) -> some View {
+    private func bootBlock(label: String, value: String, color: AstraColorRole, lit: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label)
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(color))
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
-                .background(theme.color(color), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 5))
-            Text(value)
+                .astraChrome(color, in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 5), emphasis: lit ? 1 : 0.32)
+            Text(lit ? value : "····")
                 .font(theme.typography.display(size: 18))
+                .foregroundStyle(lit ? theme.palette.text : theme.palette.mutedText.opacity(0.5))
         }
         .frame(maxWidth: 150, alignment: .leading)
+    }
+}
+
+/// Console boot log: lines reveal in order as `progress` advances, drawn
+/// in one Canvas so the 24 Hz boot timeline invalidates a single draw.
+struct BootLog: View {
+    @Environment(\.astraTheme) private var theme
+    var lines: [String]
+    var progress: Double
+    var accent: AstraColorRole
+
+    var body: some View {
+        Canvas { context, size in
+            let lineHeight: CGFloat = 19
+            let visible = Int((progress * Double(lines.count + 1)).rounded(.down))
+            for (index, line) in lines.enumerated() where index < visible {
+                let y = CGFloat(index) * lineHeight
+                let isCurrent = index == visible - 1 && progress < 1
+                let stamp = context.resolve(
+                    Text(String(format: "%02d", index + 1))
+                        .font(theme.typography.data(size: 12))
+                        .foregroundStyle(theme.color(accent).opacity(0.85))
+                )
+                context.draw(stamp, at: CGPoint(x: 0, y: y), anchor: .topLeading)
+                let text = context.resolve(
+                    Text(isCurrent ? line + " ▌" : line)
+                        .font(theme.typography.data(size: 12))
+                        .foregroundStyle(isCurrent ? theme.palette.text : theme.palette.mutedText)
+                )
+                context.draw(text, at: CGPoint(x: 28, y: y), anchor: .topLeading)
+            }
+            var rule = Path()
+            rule.move(to: CGPoint(x: 0, y: size.height - 1))
+            rule.addLine(to: CGPoint(x: size.width * progress, y: size.height - 1))
+            context.stroke(rule, with: .color(theme.color(accent)), lineWidth: 1.5)
+        }
     }
 }
 
@@ -276,6 +414,7 @@ struct CommandHeader: View {
     @Environment(DashboardStore.self) private var store
     @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
+    @Environment(\.astraAnimationsPaused) private var animationsPaused
     var dashboard: DashboardLayout
     /// Builder toggle; `nil` hides the EDIT control (presentation surfaces).
     var onToggleBuilder: (() -> Void)? = nil
@@ -290,10 +429,12 @@ struct CommandHeader: View {
     var body: some View {
         HStack(spacing: theme.metrics.gap) {
             ConsoleElbow(color: dashboard.accentRole, compact: false)
+            PulseDotOverlay(color: theme.color(linkStatus?.color ?? .mint), period: 2.4, paused: animationsPaused)
+                .frame(width: 16, height: 16)
             VStack(alignment: .leading, spacing: 2) {
                 Text("USS ASTRA · \(dashboard.deckCode)")
                     .font(theme.typography.display(size: 24))
-                    .tracking(1.2)
+                    .tracking(1.2 + theme.typography.displayTracking)
                 Text(dashboard.subtitle.uppercased())
                     .font(theme.typography.systemData(size: 12, weight: .semibold))
                     .foregroundStyle(theme.palette.mutedText)
@@ -352,12 +493,12 @@ struct HeaderChip: View {
     var body: some View {
         Text(title)
             .font(theme.typography.data(size: 12))
-            .foregroundStyle(.black)
+            .foregroundStyle(theme.chromeText(color))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .padding(.horizontal, 16)
             .frame(height: 34)
-            .background(theme.color(color), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6))
+            .astraChrome(color, in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6))
     }
 }
 
@@ -368,14 +509,11 @@ struct ConsoleElbow: View {
 
     var body: some View {
         HStack(spacing: theme.metrics.fineGap) {
-            AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4)
-                .fill(theme.color(color))
+            AstraChromeBlock(role: color, shape: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
                 .frame(width: compact ? 40 : 72)
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(theme.color(.violet))
+            AstraChromeBlock(role: .violet, shape: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .frame(width: compact ? 26 : 42)
-            AstraPartialRoundedRectangle(leadingRadius: 4, trailingRadius: theme.metrics.terminalRadius)
-                .fill(theme.color(.rose))
+            AstraChromeBlock(role: .rose, shape: AstraPartialRoundedRectangle(leadingRadius: 4, trailingRadius: theme.metrics.terminalRadius))
                 .frame(width: compact ? 18 : 32)
         }
         .frame(height: 34)
@@ -384,11 +522,14 @@ struct ConsoleElbow: View {
 
 struct AstraCFrame<Content: View>: View {
     @Environment(\.astraTheme) private var theme
+    @Environment(\.astraAnimationsPaused) private var animationsPaused
     var accent: AstraColorRole
     var secondary: AstraColorRole = .gold
     var topLabel: String
     var bottomLabel: String
     var railWidth: CGFloat? = nil
+    /// Ambient scan band across the content well (render-server animation).
+    var sweeps: Bool = false
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -420,6 +561,13 @@ struct AstraCFrame<Content: View>: View {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .background(theme.palette.screen.opacity(0.72), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+                    .overlay {
+                        if sweeps {
+                            ScanSweepOverlay(color: theme.color(accent), period: 11 / theme.animationIntensity, paused: animationsPaused)
+                                .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+                                .allowsHitTesting(false)
+                        }
+                    }
 
                 HStack(spacing: theme.metrics.fineGap) {
                     topBar(label: bottomLabel, color: accent, leadingRadius: 0)
@@ -454,31 +602,56 @@ struct AstraCFrame<Content: View>: View {
                 }
                 path.closeSubpath()
             }
-            .fill(theme.color(color))
+            .fill(theme.chromeFill(color))
+            .overlay {
+                if theme.chrome == .hairline {
+                    capPath(in: CGRect(origin: .zero, size: proxy.size), top: top)
+                        .stroke(theme.chromeStroke(color), lineWidth: theme.chromeStrokeWidth)
+                }
+            }
+        }
+    }
+
+    private func capPath(in rect: CGRect, top: Bool) -> Path {
+        Path { path in
+            let radius = min(rect.width * 0.62, rect.height * 0.45)
+            if top {
+                path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+                path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.minY + radius), control: rect.origin)
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            } else {
+                path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - radius))
+                path.addQuadCurve(to: CGPoint(x: rect.minX + radius, y: rect.maxY), control: CGPoint(x: rect.minX, y: rect.maxY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            }
+            path.closeSubpath()
         }
     }
 
     private func sidePlate(label: String, color: AstraColorRole) -> some View {
         Text(label)
             .font(theme.typography.data(size: 12))
-            .foregroundStyle(.black)
+            .foregroundStyle(theme.chromeText(color))
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             .padding(.trailing, 12)
             .padding(.bottom, 10)
-            .background(theme.color(color))
+            .astraChrome(color, in: Rectangle())
     }
 
     private func topBar(label: String, color: AstraColorRole, compact: Bool = false, leadingRadius: CGFloat? = nil) -> some View {
         ZStack(alignment: .trailing) {
-            AstraPartialRoundedRectangle(
+            AstraChromeBlock(role: color, shape: AstraPartialRoundedRectangle(
                 leadingRadius: leadingRadius ?? theme.metrics.dataRadius,
                 trailingRadius: theme.metrics.dataRadius
-            )
-            .fill(theme.color(color))
+            ))
 
             Text(label.uppercased())
                 .font(theme.typography.data(size: compact ? 11 : 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(color))
                 .lineLimit(1)
                 .minimumScaleFactor(0.58)
                 .padding(.horizontal, 12)
@@ -487,15 +660,13 @@ struct AstraCFrame<Content: View>: View {
     }
 
     private func smallSegment(color: AstraColorRole) -> some View {
-        theme.color(color)
+        AstraChromeBlock(role: color, shape: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
             .frame(width: 34)
             .frame(maxHeight: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
     }
 
     private func terminal(color: AstraColorRole) -> some View {
-        AstraPartialRoundedRectangle(leadingRadius: 4, trailingRadius: theme.metrics.terminalRadius)
-            .fill(theme.color(color))
+        AstraChromeBlock(role: color, shape: AstraPartialRoundedRectangle(leadingRadius: 4, trailingRadius: theme.metrics.terminalRadius))
             .frame(width: 34)
             .frame(maxHeight: .infinity)
     }
@@ -526,29 +697,26 @@ struct AstraRailStrip: View {
     }
 
     private func longBar(color: AstraColorRole, leadingRadius: CGFloat, trailingRadius: CGFloat) -> some View {
-        AstraPartialRoundedRectangle(leadingRadius: leadingRadius, trailingRadius: trailingRadius)
-            .fill(theme.color(color))
+        AstraChromeBlock(role: color, shape: AstraPartialRoundedRectangle(leadingRadius: leadingRadius, trailingRadius: trailingRadius))
             .frame(maxWidth: .infinity)
     }
 
     private var labelBlock: some View {
         Text(label.uppercased())
             .font(theme.typography.data(size: 12))
-            .foregroundStyle(.black)
+            .foregroundStyle(theme.chromeText(.violet))
             .lineLimit(1)
             .minimumScaleFactor(0.55)
             .frame(width: 70)
-            .background(theme.color(.violet), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+            .astraChrome(.violet, in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
     }
 
     private var smallBlocks: some View {
         HStack(spacing: theme.metrics.fineGap) {
-            theme.color(.rose)
+            AstraChromeBlock(role: .rose, shape: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
                 .frame(width: 18)
-                .clipShape(RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
-            theme.color(.cyan)
+            AstraChromeBlock(role: .cyan, shape: AstraPartialRoundedRectangle(leadingRadius: 4, trailingRadius: theme.metrics.terminalRadius))
                 .frame(width: 26)
-                .clipShape(AstraPartialRoundedRectangle(leadingRadius: 4, trailingRadius: theme.metrics.terminalRadius))
         }
         .frame(height: 22)
     }
@@ -560,16 +728,14 @@ struct AstraVerticalRail: View {
 
     var body: some View {
         VStack(spacing: theme.metrics.fineGap) {
-            theme.color(accent)
-                .clipShape(AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
-            theme.color(.violet)
+            AstraChromeBlock(role: accent, shape: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
+            AstraChromeBlock(role: .violet, shape: Rectangle())
                 .frame(height: theme.metrics.rail * 1.25)
-            theme.color(.gold)
+            AstraChromeBlock(role: .gold, shape: Rectangle())
                 .frame(height: theme.metrics.rail * 1.85)
-            theme.color(.rose)
+            AstraChromeBlock(role: .rose, shape: Rectangle())
                 .frame(height: theme.metrics.rail * 0.72)
-            theme.color(.cyan)
-                .clipShape(AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
+            AstraChromeBlock(role: .cyan, shape: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
         }
         .frame(width: theme.metrics.rail)
     }
@@ -583,11 +749,11 @@ struct ThemeSelectorPanel: View {
         VStack(alignment: .leading, spacing: theme.metrics.fineGap) {
             Text("THEME SELECT")
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(.mint))
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.horizontal, 10)
                 .frame(height: 24)
-                .background(theme.color(.mint), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
+                .astraChrome(.mint, in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 4))
 
             ForEach(AstraThemeID.allCases) { themeID in
                 Button {
@@ -595,12 +761,13 @@ struct ThemeSelectorPanel: View {
                         store.selectTheme(themeID)
                     }
                 } label: {
+                    let isSelected = themeID == store.selectedThemeID
                     HStack(spacing: 8) {
                         Text(themeID.shortTitle)
                             .font(theme.typography.data(size: 12))
-                            .foregroundStyle(.black)
+                            .foregroundStyle(theme.chromeText(isSelected ? .gold : .violet))
                             .frame(width: 36, height: 24)
-                            .background(theme.color(themeID == store.selectedThemeID ? .gold : .violet), in: Capsule())
+                            .astraChrome(isSelected ? .gold : .violet, in: Capsule())
                         Text(themeID.title.uppercased())
                             .font(theme.typography.display(size: 14))
                             .lineLimit(1)
@@ -610,12 +777,11 @@ struct ThemeSelectorPanel: View {
                     .padding(.horizontal, 8)
                     .frame(height: 32)
                     .background(
-                        themeID == store.selectedThemeID
-                        ? theme.color(.apricot)
-                        : theme.palette.panelHighlight.opacity(0.62),
+                        isSelected ? Color.clear : theme.palette.panelHighlight.opacity(0.62),
                         in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 5)
                     )
-                    .foregroundStyle(themeID == store.selectedThemeID ? .black : theme.palette.text.opacity(0.82))
+                    .astraChrome(.apricot, in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 5), emphasis: isSelected ? 1 : 0)
+                    .foregroundStyle(isSelected ? theme.chromeText(.apricot) : theme.palette.text.opacity(0.82))
                 }
                 .buttonStyle(.plain)
             }
@@ -642,16 +808,16 @@ struct ConsoleSidebar: View {
                     Button {
                         onSelectDashboard(dashboard)
                     } label: {
+                        let isActive = dashboard.id == activeDashboardID
                         HStack(spacing: 8) {
                             Text(dashboard.deckCode)
                                 .font(theme.typography.data(size: 11))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(theme.chromeText(isActive ? .mint : dashboard.accentRole))
                                 .frame(width: 52, height: 24)
-                                .background(
-                                    dashboard.id == activeDashboardID
-                                    ? theme.color(.mint)
-                                    : theme.color(dashboard.accentRole).opacity(0.82),
-                                    in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4)
+                                .astraChrome(
+                                    isActive ? .mint : dashboard.accentRole,
+                                    in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4),
+                                    emphasis: isActive ? 1 : 0.82
                                 )
                             Text(dashboard.name.uppercased())
                                 .font(theme.typography.display(size: 14))
@@ -660,20 +826,24 @@ struct ConsoleSidebar: View {
                             Spacer()
                             Text("\(dashboard.widgets.count)")
                                 .font(theme.typography.data(size: 12))
-                                .foregroundStyle(.black)
+                                .foregroundStyle(isActive ? theme.chromeText(.gold) : theme.palette.text.opacity(0.7))
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 4)
-                                .background(dashboard.id == activeDashboardID ? theme.color(.gold) : theme.palette.mutedText.opacity(0.46), in: Capsule())
+                                .background(isActive ? Color.clear : theme.palette.mutedText.opacity(0.22), in: Capsule())
+                                .astraChrome(.gold, in: Capsule(), emphasis: isActive ? 1 : 0)
                         }
                         .padding(.horizontal, 12)
                         .frame(height: 42)
                         .background(
-                            dashboard.id == activeDashboardID
-                            ? theme.color(dashboard.accentRole).opacity(0.95)
-                            : theme.palette.panelHighlight.opacity(0.72),
+                            isActive ? Color.clear : theme.palette.panelHighlight.opacity(0.72),
                             in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6)
                         )
-                        .foregroundStyle(dashboard.id == activeDashboardID ? .black : theme.palette.text.opacity(0.78))
+                        .astraChrome(
+                            dashboard.accentRole,
+                            in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6),
+                            emphasis: isActive ? 0.95 : 0
+                        )
+                        .foregroundStyle(isActive ? theme.chromeText(dashboard.accentRole) : theme.palette.text.opacity(0.78))
                     }
                     .buttonStyle(.plain)
                 }
@@ -726,9 +896,15 @@ struct DashboardCanvas: View {
     var isBuilderVisible: Bool
     var onResizeWidget: (DashboardWidget, WidgetSize) -> Void
     var onRemoveWidget: (DashboardWidget) -> Void
+    /// Presentation surfaces (Apple TV, AirPlay window): the grid never
+    /// scrolls and the canvas takes its ideal height, so the caller can
+    /// measure it and scale the whole surface to fit the screen.
+    var presentation: Bool = false
+
+    static let columns = 4
 
     private var rows: [[DashboardWidget]] {
-        packWidgets(dashboard.widgets, columns: 4)
+        Self.packWidgets(dashboard.widgets, columns: Self.columns)
     }
 
     var body: some View {
@@ -737,38 +913,48 @@ struct DashboardCanvas: View {
             secondary: dashboard.secondaryRole,
             topLabel: dashboard.name,
             bottomLabel: dashboard.deckCode,
-            railWidth: 150
+            railWidth: 150,
+            sweeps: true
         ) {
-            ScrollView {
-                Grid(horizontalSpacing: theme.metrics.gap, verticalSpacing: theme.metrics.gap) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                        GridRow {
-                            ForEach(row) { widget in
-                                DashboardWidgetCard(
-                                    widget: widget,
-                                    isBuilderVisible: isBuilderVisible,
-                                    onResizeWidget: onResizeWidget,
-                                    onRemoveWidget: onRemoveWidget
-                                )
-                                    .gridCellColumns(min(4, widget.size.columns))
-                            }
-                            let used = row.reduce(0) { $0 + min(4, $1.size.columns) }
-                            if used < 4 {
-                                Color.clear
-                                    .gridCellColumns(4 - used)
-                                    .frame(height: 1)
-                            }
-                        }
-                    }
+            if presentation {
+                grid
+                    .padding(theme.metrics.gap)
+            } else {
+                ScrollView {
+                    grid
+                        .padding(theme.metrics.gap)
+                        .padding(.bottom, 18)
                 }
-                .padding(theme.metrics.gap)
-                .padding(.bottom, 18)
+                .scrollIndicators(.hidden)
             }
-            .scrollIndicators(.hidden)
         }
     }
 
-    private func packWidgets(_ widgets: [DashboardWidget], columns: Int) -> [[DashboardWidget]] {
+    private var grid: some View {
+        Grid(horizontalSpacing: theme.metrics.gap, verticalSpacing: theme.metrics.gap) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                GridRow {
+                    ForEach(row) { widget in
+                        DashboardWidgetCard(
+                            widget: widget,
+                            isBuilderVisible: isBuilderVisible,
+                            onResizeWidget: onResizeWidget,
+                            onRemoveWidget: onRemoveWidget
+                        )
+                            .gridCellColumns(min(Self.columns, widget.size.columns))
+                    }
+                    let used = row.reduce(0) { $0 + min(Self.columns, $1.size.columns) }
+                    if used < Self.columns {
+                        Color.clear
+                            .gridCellColumns(Self.columns - used)
+                            .frame(height: 1)
+                    }
+                }
+            }
+        }
+    }
+
+    private static func packWidgets(_ widgets: [DashboardWidget], columns: Int) -> [[DashboardWidget]] {
         var rows: [[DashboardWidget]] = []
         var row: [DashboardWidget] = []
         var width = 0
@@ -802,11 +988,10 @@ struct DashboardWidgetCard: View {
     var body: some View {
         HStack(spacing: theme.metrics.fineGap) {
             VStack(spacing: theme.metrics.fineGap) {
-                theme.color(widget.kind.group.accent)
-                    .clipShape(AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius * 0.75, trailingRadius: 0))
-                theme.color(.gold)
+                AstraChromeBlock(role: widget.kind.group.accent, shape: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius * 0.75, trailingRadius: 0))
+                AstraChromeBlock(role: .gold, shape: Rectangle())
                     .frame(height: 30)
-                theme.color(.rose)
+                AstraChromeBlock(role: .rose, shape: Rectangle())
                     .frame(height: 20)
             }
             .frame(width: 9)
@@ -837,8 +1022,16 @@ struct DashboardWidgetCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous)
-                .stroke(theme.color(widget.kind.group.accent).opacity(0.26), lineWidth: 1)
+                .stroke(theme.color(widget.kind.group.accent).opacity(theme.chrome == .hairline ? 0.45 : 0.26), lineWidth: 1)
         )
+        .overlay(alignment: .topTrailing) {
+            if theme.chrome == .hairline {
+                CornerBracket()
+                    .stroke(theme.color(widget.kind.group.accent), lineWidth: 1.5)
+                    .frame(width: 22, height: 22)
+                    .padding(6)
+            }
+        }
     }
 
     @ViewBuilder
@@ -876,6 +1069,17 @@ struct DashboardWidgetCard: View {
     }
 }
 
+/// Top-right corner bracket used as a holographic accent on widget cards.
+struct CornerBracket: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return path
+    }
+}
+
 struct WidgetHeader: View {
     @Environment(\.astraTheme) private var theme
     var widget: DashboardWidget
@@ -887,9 +1091,9 @@ struct WidgetHeader: View {
         HStack(spacing: theme.metrics.fineGap + 3) {
             Text(widget.kind.panelCode)
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(widget.kind.group.accent))
                 .frame(width: 54, height: 26)
-                .background(theme.color(widget.kind.group.accent), in: AstraPartialRoundedRectangle(leadingRadius: 14, trailingRadius: 4))
+                .astraChrome(widget.kind.group.accent, in: AstraPartialRoundedRectangle(leadingRadius: 14, trailingRadius: 4))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(widget.kind.title.uppercased())
@@ -1008,9 +1212,9 @@ struct CatalogRow: View {
         HStack(spacing: 10) {
             Text(kind.panelCode)
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(kind.group.accent))
                 .frame(width: 52, height: 30)
-                .background(theme.color(kind.group.accent), in: AstraPartialRoundedRectangle(leadingRadius: 14, trailingRadius: 4))
+                .astraChrome(kind.group.accent, in: AstraPartialRoundedRectangle(leadingRadius: 14, trailingRadius: 4))
             VStack(alignment: .leading, spacing: 2) {
                 Text(kind.title)
                     .font(theme.typography.display(size: 14, weight: .bold))
@@ -1044,9 +1248,9 @@ struct SelectedWidgetRow: View {
         HStack(spacing: 8) {
             Text("\(index + 1)")
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(widget.kind.group.accent))
                 .frame(width: 26, height: 26)
-                .background(theme.color(widget.kind.group.accent), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+                .astraChrome(widget.kind.group.accent, in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
             Text(widget.kind.title)
                 .font(theme.typography.display(size: 14, weight: .bold))
                 .lineLimit(1)
@@ -1099,8 +1303,8 @@ struct ConsoleIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: compact ? 11 : 14, weight: .black))
-            .foregroundStyle(.black)
-            .background(theme.color(color).opacity(configuration.isPressed ? 0.72 : 1), in: AstraPartialRoundedRectangle(leadingRadius: compact ? 10 : theme.metrics.terminalRadius, trailingRadius: 5))
+            .foregroundStyle(theme.chromeText(color))
+            .astraChrome(color, in: AstraPartialRoundedRectangle(leadingRadius: compact ? 10 : theme.metrics.terminalRadius, trailingRadius: 5), emphasis: configuration.isPressed ? 0.72 : 1)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
     }
 }
@@ -1113,10 +1317,10 @@ struct ConsoleTextButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(theme.typography.data(size: compact ? 9 : 11))
-            .foregroundStyle(.black)
+            .foregroundStyle(theme.chromeText(color))
             .lineLimit(1)
             .minimumScaleFactor(0.5)
-            .background(theme.color(color).opacity(configuration.isPressed ? 0.72 : 1), in: AstraPartialRoundedRectangle(leadingRadius: compact ? 10 : theme.metrics.terminalRadius, trailingRadius: 5))
+            .astraChrome(color, in: AstraPartialRoundedRectangle(leadingRadius: compact ? 10 : theme.metrics.terminalRadius, trailingRadius: 5), emphasis: configuration.isPressed ? 0.72 : 1)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
     }
 }
@@ -1127,8 +1331,8 @@ struct ConsolePillButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(.black)
-            .background(theme.color(color).opacity(configuration.isPressed ? 0.72 : 1), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6))
+            .foregroundStyle(theme.chromeText(color))
+            .astraChrome(color, in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius, trailingRadius: 6), emphasis: configuration.isPressed ? 0.72 : 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
     }
 }
@@ -1167,7 +1371,7 @@ struct SegmentedBar: View {
         HStack(spacing: 3) {
             ForEach(0..<segments, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(Double(index) / Double(max(1, segments - 1)) <= progress.clamped(to: 0...1) ? theme.color(color) : theme.palette.text.opacity(0.09))
+                    .fill(Double(index) / Double(max(1, segments - 1)) <= progress.clamped(to: 0...1) ? theme.color(color) : theme.inactiveCell(color))
                     .frame(height: 10)
             }
         }
@@ -1183,7 +1387,7 @@ struct ConsoleRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(theme.palette.text.opacity(0.08), lineWidth: 13)
+                .stroke(theme.inactiveCell(color), lineWidth: 13)
             Circle()
                 .trim(from: 0, to: value.clamped(to: 0...1))
                 .stroke(theme.color(color), style: StrokeStyle(lineWidth: 13, lineCap: .round))

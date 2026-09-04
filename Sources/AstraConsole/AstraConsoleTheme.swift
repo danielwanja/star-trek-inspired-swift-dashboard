@@ -4,6 +4,7 @@ enum AstraThemeID: String, CaseIterable, Codable, Identifiable {
     case classic
     case voyager
     case picardModern
+    case horizon
 
     var id: String { rawValue }
 
@@ -12,6 +13,7 @@ enum AstraThemeID: String, CaseIterable, Codable, Identifiable {
         case .classic: "Classic"
         case .voyager: "Voyager"
         case .picardModern: "Picard Modern"
+        case .horizon: "Horizon HUD"
         }
     }
 
@@ -20,6 +22,7 @@ enum AstraThemeID: String, CaseIterable, Codable, Identifiable {
         case .classic: "CLS"
         case .voyager: "VOY"
         case .picardModern: "PIC"
+        case .horizon: "HUD"
         }
     }
 
@@ -28,6 +31,7 @@ enum AstraThemeID: String, CaseIterable, Codable, Identifiable {
         case .classic: .classic
         case .voyager: .voyager
         case .picardModern: .picardModern
+        case .horizon: .horizon
         }
     }
 }
@@ -73,19 +77,57 @@ struct AstraMetrics {
 
 struct AstraTypography {
     var displayFamily: String
-    var dataFamily: String
+    /// `nil` renders data labels in the system monospaced face.
+    var dataFamily: String?
+    /// Heaviest weight the display face should be asked for. Thin
+    /// holographic faces look wrong at `.black`, so themes can cap it.
+    var maxDisplayWeight: Font.Weight = .black
+    /// Extra tracking applied to display labels (points).
+    var displayTracking: CGFloat = 0
+
+    init(displayFamily: String, dataFamily: String?, maxDisplayWeight: Font.Weight = .black, displayTracking: CGFloat = 0) {
+        self.displayFamily = displayFamily
+        self.dataFamily = dataFamily
+        self.maxDisplayWeight = maxDisplayWeight
+        self.displayTracking = displayTracking
+    }
 
     func display(size: CGFloat, weight: Font.Weight = .black) -> Font {
-        .custom(displayFamily, size: max(size, 14)).weight(weight)
+        .custom(displayFamily, size: max(size, 14)).weight(cappedWeight(weight))
     }
 
     func data(size: CGFloat, weight: Font.Weight = .black) -> Font {
-        .custom(dataFamily, size: max(size, 12.5)).weight(weight)
+        if let dataFamily {
+            return .custom(dataFamily, size: max(size, 12.5)).weight(weight)
+        }
+        return .system(size: max(size, 11.5), weight: weight == .black ? .semibold : weight, design: .monospaced)
     }
 
     func systemData(size: CGFloat, weight: Font.Weight = .black) -> Font {
         .system(size: max(size, 12), weight: weight, design: .monospaced)
     }
+
+    private func cappedWeight(_ weight: Font.Weight) -> Font.Weight {
+        let order: [Font.Weight] = [.ultraLight, .thin, .light, .regular, .medium, .semibold, .bold, .heavy, .black]
+        guard let wanted = order.firstIndex(of: weight), let cap = order.firstIndex(of: maxDisplayWeight) else { return weight }
+        return order[min(wanted, cap)]
+    }
+}
+
+/// How colored chrome is rendered.
+enum AstraChromeStyle: Sendable, Equatable {
+    /// LCARS-era: solid colored bars with black labels.
+    case solid
+    /// Holographic: thin luminous outlines over a faint tint, labels in the
+    /// accent color, optional glow.
+    case hairline
+}
+
+/// Static texture behind the console.
+enum AstraBackdropStyle: Sendable, Equatable {
+    case grid
+    /// Dot lattice with faint concentric range rings and a horizon line.
+    case reticle
 }
 
 struct AstraConsoleTheme {
@@ -94,9 +136,51 @@ struct AstraConsoleTheme {
     var metrics: AstraMetrics
     var typography: AstraTypography
     var animationIntensity: Double
+    var chrome: AstraChromeStyle = .solid
+    var backdrop: AstraBackdropStyle = .grid
+    /// Blur radius of the glow behind chrome; 0 disables it.
+    var glowRadius: CGFloat = 0
 
     func color(_ role: AstraColorRole) -> Color {
         palette.color(role)
+    }
+
+    // MARK: Chrome rendering
+
+    /// Fill behind a piece of chrome carrying `role`.
+    func chromeFill(_ role: AstraColorRole) -> Color {
+        switch chrome {
+        case .solid: color(role)
+        case .hairline: color(role).opacity(0.13)
+        }
+    }
+
+    /// Outline of a piece of chrome; clear for solid themes.
+    func chromeStroke(_ role: AstraColorRole) -> Color {
+        switch chrome {
+        case .solid: .clear
+        case .hairline: color(role).opacity(0.88)
+        }
+    }
+
+    var chromeStrokeWidth: CGFloat {
+        chrome == .hairline ? 1.2 : 0
+    }
+
+    /// Color for labels drawn on top of chrome.
+    func chromeText(_ role: AstraColorRole) -> Color {
+        switch chrome {
+        case .solid: .black
+        case .hairline: color(role)
+        }
+    }
+
+    /// Color of an unlit segment/cell in gauges.
+    func inactiveCell(_ role: AstraColorRole) -> Color {
+        switch chrome {
+        case .solid: palette.text.opacity(0.09)
+        case .hairline: color(role).opacity(0.10)
+        }
     }
 
     static let classic = AstraConsoleTheme(
@@ -209,6 +293,54 @@ struct AstraConsoleTheme {
         typography: AstraTypography(displayFamily: "HelveticaNeue-CondensedBlack", dataFamily: "DINCondensed-Bold"),
         animationIntensity: 1.18
     )
+
+    /// Deep-space holographic HUD: near-black blue glass, ice-cyan hairline
+    /// chrome with a soft glow, thin geometric type, reticle backdrop.
+    /// Warm roles are remapped to amber/coral so warnings still read as warm.
+    static let horizon = AstraConsoleTheme(
+        id: .horizon,
+        palette: AstraPalette(
+            screen: Color(red: 0.004, green: 0.012, blue: 0.024),
+            screenGradient: Color(red: 0.020, green: 0.075, blue: 0.130),
+            text: Color(red: 0.86, green: 0.96, blue: 1.00),
+            mutedText: Color(red: 0.46, green: 0.70, blue: 0.82),
+            panel: Color(red: 0.012, green: 0.040, blue: 0.068),
+            panelHighlight: Color(red: 0.030, green: 0.110, blue: 0.170),
+            gridMinor: Color(red: 0.30, green: 0.85, blue: 1.00).opacity(0.050),
+            gridMajor: Color(red: 0.30, green: 0.85, blue: 1.00).opacity(0.110),
+            roles: [
+                .apricot: Color(red: 1.00, green: 0.72, blue: 0.36),
+                .gold: Color(red: 1.00, green: 0.84, blue: 0.46),
+                .violet: Color(red: 0.62, green: 0.74, blue: 1.00),
+                .rose: Color(red: 1.00, green: 0.52, blue: 0.58),
+                .cyan: Color(red: 0.36, green: 0.92, blue: 1.00),
+                .mint: Color(red: 0.62, green: 1.00, blue: 0.90),
+                .red: Color(red: 1.00, green: 0.30, blue: 0.34),
+                .blue: Color(red: 0.34, green: 0.62, blue: 1.00)
+            ]
+        ),
+        metrics: AstraMetrics(
+            outerPadding: 18,
+            gap: 12,
+            fineGap: 6,
+            rail: 40,
+            minorRail: 8,
+            terminalRadius: 6,
+            panelRadius: 4,
+            dataRadius: 2,
+            panelOpacity: 0.55
+        ),
+        typography: AstraTypography(
+            displayFamily: "AvenirNextCondensed-DemiBold",
+            dataFamily: nil,
+            maxDisplayWeight: .semibold,
+            displayTracking: 1.4
+        ),
+        animationIntensity: 1.25,
+        chrome: .hairline,
+        backdrop: .reticle,
+        glowRadius: 5
+    )
 }
 
 private struct AstraThemeEnvironmentKey: EnvironmentKey {
@@ -236,18 +368,75 @@ extension AstraColorRole {
     }
 }
 
-struct AstraPartialRoundedRectangle: Shape {
+struct AstraPartialRoundedRectangle: InsettableShape {
     var leadingRadius: CGFloat
     var trailingRadius: CGFloat
+    var insetAmount: CGFloat = 0
+
+    init(leadingRadius: CGFloat, trailingRadius: CGFloat) {
+        self.leadingRadius = leadingRadius
+        self.trailingRadius = trailingRadius
+    }
 
     func path(in rect: CGRect) -> Path {
+        let inner = rect.insetBy(dx: insetAmount, dy: insetAmount)
         let radii = RectangleCornerRadii(
-            topLeading: leadingRadius,
-            bottomLeading: leadingRadius,
-            bottomTrailing: trailingRadius,
-            topTrailing: trailingRadius
+            topLeading: max(0, leadingRadius - insetAmount),
+            bottomLeading: max(0, leadingRadius - insetAmount),
+            bottomTrailing: max(0, trailingRadius - insetAmount),
+            topTrailing: max(0, trailingRadius - insetAmount)
         )
-        return UnevenRoundedRectangle(cornerRadii: radii, style: .continuous).path(in: rect)
+        return UnevenRoundedRectangle(cornerRadii: radii, style: .continuous).path(in: inner)
+    }
+
+    func inset(by amount: CGFloat) -> AstraPartialRoundedRectangle {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+}
+
+/// Renders a view as a piece of console chrome in the current theme: a
+/// solid colored block (LCARS-era themes) or a luminous hairline outline
+/// over a faint tint with glow (holographic themes). Pair it with
+/// `theme.chromeText(role)` for the label color.
+struct AstraChromeModifier<S: InsettableShape>: ViewModifier {
+    @Environment(\.astraTheme) private var theme
+    var role: AstraColorRole
+    var shape: S
+    var emphasis: Double
+
+    func body(content: Content) -> some View {
+        content
+            .background(theme.chromeFill(role).opacity(emphasis), in: shape)
+            .overlay {
+                if theme.chrome == .hairline {
+                    shape.strokeBorder(theme.chromeStroke(role).opacity(emphasis), lineWidth: theme.chromeStrokeWidth)
+                }
+            }
+            .shadow(color: theme.glowRadius > 0 ? theme.color(role).opacity(0.38 * emphasis) : .clear, radius: theme.glowRadius)
+    }
+}
+
+extension View {
+    /// See `AstraChromeModifier`. `emphasis` dims the chrome (0...1) for
+    /// inactive states without changing its shape language.
+    func astraChrome<S: InsettableShape>(_ role: AstraColorRole, in shape: S, emphasis: Double = 1) -> some View {
+        modifier(AstraChromeModifier(role: role, shape: shape, emphasis: emphasis))
+    }
+}
+
+/// A solid block of chrome (no content): the rails, caps and segments of
+/// the console frames. Draws as fill or hairline according to the theme.
+struct AstraChromeBlock<S: InsettableShape>: View {
+    @Environment(\.astraTheme) private var theme
+    var role: AstraColorRole
+    var shape: S
+    var emphasis: Double = 1
+
+    var body: some View {
+        Color.clear
+            .astraChrome(role, in: shape, emphasis: emphasis)
     }
 }
 

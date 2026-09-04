@@ -110,11 +110,14 @@ struct FakeDiagnosticsWidget: View {
 
                     let chipRect = CGRect(x: size.width - 58, y: top, width: 58, height: 22)
                     let chipShape = Capsule().path(in: chipRect)
-                    context.fill(chipShape, with: .color(theme.color(color(index))))
+                    context.fill(chipShape, with: .color(theme.chromeFill(color(index))))
+                    if theme.chrome == .hairline {
+                        context.stroke(chipShape, with: .color(theme.chromeStroke(color(index))), lineWidth: theme.chromeStrokeWidth)
+                    }
                     let status = context.resolve(
                         Text(status(progress))
                             .font(theme.typography.data(size: 12))
-                            .foregroundStyle(Color.black)
+                            .foregroundStyle(theme.chromeText(color(index)))
                     )
                     context.draw(status, at: CGPoint(x: chipRect.midX, y: chipRect.midY), anchor: .center)
 
@@ -352,9 +355,9 @@ struct AlertLogWidget: View {
                         }
                     }
                     .font(theme.typography.data(size: 12))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(theme.chromeText(alert.2))
                     .frame(width: 42, height: 24)
-                    .background(theme.color(alert.2), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+                    .astraChrome(alert.2, in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
                     Text(alert.1)
                         .font(theme.typography.display(size: 14, weight: .bold))
                         .lineLimit(1)

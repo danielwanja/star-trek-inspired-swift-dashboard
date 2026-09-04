@@ -70,3 +70,9 @@ extension Double {
         min(range.upperBound, max(range.lowerBound, self))
     }
 }
+
+extension CGFloat {
+    func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
+        Swift.min(range.upperBound, Swift.max(range.lowerBound, self))
+    }
+}

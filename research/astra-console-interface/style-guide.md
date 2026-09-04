@@ -40,6 +40,46 @@ photographic or copied production graphics.
 - Geometry: thinner double rails, denser segmented frames, sharper data panes.
 - Best for: modern mission status and dense system readouts.
 
+### Horizon HUD
+
+- Feel: deep-space holographic head-up display projected on dark glass. An
+  original genre design, not a reproduction of any film's interface.
+- Palette: ice cyan primary, pale blue and mint accents, amber/coral for warm
+  and warning roles, near-black blue screen.
+- Chrome: `hairline` style. Every bar, chip and rail is a 1.2 px luminous
+  outline over a 13 % tint with a soft glow; labels are drawn in the accent
+  color instead of black. Corner radii are small (2-6 px) and cards carry a
+  top-right corner bracket.
+- Backdrop: `reticle` style, a dot lattice with range rings, a graduated
+  horizon line and corner brackets, instead of the grid texture.
+- Typography: condensed geometric display face at semibold (never black),
+  system monospaced data labels, +1.4 pt display tracking.
+- Best for: astrometrics, connectivity and any deck viewed from a distance.
+
+## Chrome Styles
+
+Themes declare how colored chrome renders, and components never fill a role
+color directly:
+
+- `solid` (Classic, Voyager, Picard Modern): filled colored blocks, black
+  labels (`theme.chromeText` returns black).
+- `hairline` (Horizon HUD): outline + faint tint + glow, labels in the role
+  color.
+
+Use `.astraChrome(role, in: shape)` on labeled chrome, `AstraChromeBlock` for
+unlabeled blocks, `theme.chromeText(role)` for the label color and
+`theme.inactiveCell(role)` for unlit gauge cells. `emphasis` dims chrome for
+inactive states without changing the shape language.
+
+## Motion
+
+- Boot flash: 0.65 s, anchored to the switch time; segmented progress, a
+  six-line boot log and status blocks that light up in sequence.
+- Ambient: a faint scan band sweeps the dashboard well every ~11 s and the
+  header status dot breathes. Both are Core Animation layers (zero app CPU).
+- Presentation surfaces scale the whole canvas to fit the screen height so
+  every row is visible without scrolling.
+
 ## Typography
 
 - Primary display labels: `HelveticaNeue-CondensedBlack`, uppercase.

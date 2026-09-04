@@ -28,9 +28,9 @@ Pass `--release` for an optimized build. This wraps `swift run SpaceshipDashboar
 ## Features
 
 - Hidden-titlebar macOS window with a 1440 x 900 default size and 1180 x 760 minimum layout
-- Three Astra Console themes: Classic, Voyager, and Picard Modern
+- Four Astra Console themes: Classic, Voyager, Picard Modern, and Horizon HUD (a holographic hairline style with its own backdrop and typography)
 - Live header telemetry for clock, CPU, memory, network, and active theme
-- Dashboard switch boot animation between console surfaces
+- Dashboard switch boot sequence (progress, boot log, status blocks) and ambient render-server motion (scan sweep, live pulse)
 - Built-in dashboards for Engineering, Command Deck, Astrometrics, and Set Playback
 - Custom dashboard builder with persisted layout and theme preferences
 - Local-only telemetry sampling through macOS and Darwin APIs
@@ -63,7 +63,7 @@ There are two ways to put the console on a TV. Both keep the Mac as the remote: 
 ### AirPlay display (no install on the Apple TV)
 
 1. In Control Center on the Mac, choose Screen Mirroring → your Apple TV → **Use As Separate Display**.
-2. The dashboard notices the new display and opens a chromeless, full-screen console on it (header telemetry plus the dashboard canvas; no sidebar, builder or buttons; pointer hidden; TV-safe margin). If you would rather start it by hand, use the `CAST` button in the header, the **Cast** menu, or ⇧⌘P, and turn off *Cast Automatically When a Display Appears* in the same menu.
+2. The dashboard notices the new display and opens a chromeless, full-screen console on it (header telemetry plus the dashboard canvas; no sidebar, builder or buttons; pointer hidden; TV-safe margin). Presentation surfaces scale the dashboard to fit the screen height, so a deck with three rows of telemetry fills a 1080p TV without scrolling. If you would rather start it by hand, use the `CAST` button in the header, the **Cast** menu, or ⇧⌘P, and turn off *Cast Automatically When a Display Appears* in the same menu.
 3. While casting, the Mac window turns into a remote: the widgets render exactly once, on the TV, and the main window shows the dashboard list, builder and a `STOP CAST` control. `EDIT` still works, so layouts can be tuned live on the TV.
 
 Latency is that of AirPlay display mirroring (a fraction of a second). macOS has no public API to start AirPlay mirroring, so step 1 stays manual.

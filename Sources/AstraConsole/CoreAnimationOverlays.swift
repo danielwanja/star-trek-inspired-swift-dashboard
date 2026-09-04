@@ -246,3 +246,217 @@ final class DashFlowLayerView: LayerHostView {
         shape.add(flow, forKey: "dashFlow")
     }
 }
+
+// MARK: - Scan sweep
+
+/// A faint luminous band that sweeps across the view every `period`
+/// seconds (the sweep itself takes ~1.1 s, then the band rests off-screen).
+/// Pure Core Animation: a keyframe animation on the band's position.
+struct ScanSweepOverlay {
+    var color: Color
+    var period: Double
+    var paused: Bool
+
+    @MainActor fileprivate func apply(to view: ScanSweepLayerView) {
+        view.configure(color: PlatformColor(color), period: period)
+        view.setPaused(paused)
+    }
+}
+
+#if canImport(AppKit)
+extension ScanSweepOverlay: NSViewRepresentable {
+    func makeNSView(context: Context) -> ScanSweepLayerView {
+        let view = ScanSweepLayerView()
+        apply(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: ScanSweepLayerView, context: Context) {
+        apply(to: nsView)
+    }
+}
+#else
+extension ScanSweepOverlay: UIViewRepresentable {
+    func makeUIView(context: Context) -> ScanSweepLayerView {
+        let view = ScanSweepLayerView()
+        apply(to: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: ScanSweepLayerView, context: Context) {
+        apply(to: uiView)
+    }
+}
+#endif
+
+final class ScanSweepLayerView: LayerHostView {
+    private let band = CAGradientLayer()
+    private var period: Double = 0
+    private let bandWidth: CGFloat = 72
+
+    override func hostLayerDidLoad() {
+        hostLayer.masksToBounds = true
+        band.startPoint = CGPoint(x: 0, y: 0.5)
+        band.endPoint = CGPoint(x: 1, y: 0.5)
+        band.locations = [0, 0.5, 1]
+        band.opacity = 0.22
+        hostLayer.addSublayer(band)
+    }
+
+    func configure(color: PlatformColor, period: Double) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        band.colors = [
+            color.withAlphaComponent(0).cgColor,
+            color.cgColor,
+            color.withAlphaComponent(0).cgColor
+        ]
+        CATransaction.commit()
+        if self.period != period {
+            self.period = period
+            installAnimation()
+        }
+    }
+
+    func setPaused(_ paused: Bool) {
+        setLayerPaused(paused, on: hostLayer)
+    }
+
+    override func layoutLayers() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        band.bounds = CGRect(x: 0, y: 0, width: bandWidth, height: bounds.height)
+        band.position = CGPoint(x: -bandWidth, y: bounds.midY)
+        CATransaction.commit()
+        installAnimation()
+    }
+
+    override func attachedToWindow() {
+        installAnimation()
+    }
+
+    private func installAnimation() {
+        band.removeAnimation(forKey: "sweep")
+        guard period > 0, bounds.width > 0 else { return }
+        let travel = CAKeyframeAnimation(keyPath: "position.x")
+        let start = -bandWidth
+        let end = bounds.width + bandWidth
+        travel.values = [start, end, end]
+        travel.keyTimes = [0, NSNumber(value: min(0.9, 1.1 / period)), 1]
+        travel.duration = period
+        travel.repeatCount = .infinity
+        travel.isRemovedOnCompletion = false
+        travel.timingFunctions = [CAMediaTimingFunction(name: .easeInEaseOut), CAMediaTimingFunction(name: .linear)]
+        band.add(travel, forKey: "sweep")
+    }
+}
+
+// MARK: - Pulse dot
+
+/// A small status dot breathing between full and faint opacity. Used as
+/// the live indicator in the console header; the render server does the
+/// blinking.
+struct PulseDotOverlay {
+    var color: Color
+    var period: Double
+    var paused: Bool
+
+    @MainActor fileprivate func apply(to view: PulseDotLayerView) {
+        view.configure(color: PlatformColor(color), period: period)
+        view.setPaused(paused)
+    }
+}
+
+#if canImport(AppKit)
+extension PulseDotOverlay: NSViewRepresentable {
+    func makeNSView(context: Context) -> PulseDotLayerView {
+        let view = PulseDotLayerView()
+        apply(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: PulseDotLayerView, context: Context) {
+        apply(to: nsView)
+    }
+}
+#else
+extension PulseDotOverlay: UIViewRepresentable {
+    func makeUIView(context: Context) -> PulseDotLayerView {
+        let view = PulseDotLayerView()
+        apply(to: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: PulseDotLayerView, context: Context) {
+        apply(to: uiView)
+    }
+}
+#endif
+
+final class PulseDotLayerView: LayerHostView {
+    private let dot = CAShapeLayer()
+    private let halo = CAShapeLayer()
+    private var period: Double = 0
+
+    override func hostLayerDidLoad() {
+        halo.opacity = 0.35
+        hostLayer.addSublayer(halo)
+        hostLayer.addSublayer(dot)
+    }
+
+    func configure(color: PlatformColor, period: Double) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dot.fillColor = color.cgColor
+        halo.fillColor = color.cgColor
+        CATransaction.commit()
+        if self.period != period {
+            self.period = period
+            installAnimation()
+        }
+    }
+
+    func setPaused(_ paused: Bool) {
+        setLayerPaused(paused, on: hostLayer)
+    }
+
+    override func layoutLayers() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        let side = min(bounds.width, bounds.height)
+        let core = CGRect(x: bounds.midX - side * 0.22, y: bounds.midY - side * 0.22, width: side * 0.44, height: side * 0.44)
+        dot.frame = bounds
+        dot.path = CGPath(ellipseIn: core, transform: nil)
+        halo.frame = bounds
+        halo.path = CGPath(ellipseIn: bounds.insetBy(dx: side * 0.08, dy: side * 0.08), transform: nil)
+        CATransaction.commit()
+    }
+
+    override func attachedToWindow() {
+        installAnimation()
+    }
+
+    private func installAnimation() {
+        dot.removeAnimation(forKey: "pulse")
+        halo.removeAnimation(forKey: "pulse")
+        guard period > 0 else { return }
+        let breathe = CABasicAnimation(keyPath: "opacity")
+        breathe.fromValue = 1.0
+        breathe.toValue = 0.25
+        breathe.duration = period / 2
+        breathe.autoreverses = true
+        breathe.repeatCount = .infinity
+        breathe.isRemovedOnCompletion = false
+        breathe.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        dot.add(breathe, forKey: "pulse")
+
+        let ring = CABasicAnimation(keyPath: "opacity")
+        ring.fromValue = 0.0
+        ring.toValue = 0.35
+        ring.duration = period / 2
+        ring.autoreverses = true
+        ring.repeatCount = .infinity
+        ring.isRemovedOnCompletion = false
+        halo.add(ring, forKey: "pulse")
+    }
+}

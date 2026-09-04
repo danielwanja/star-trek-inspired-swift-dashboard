@@ -59,10 +59,10 @@ struct TimeRow: View {
         HStack {
             Text(label)
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(.violet))
                 .frame(width: 52)
                 .padding(.vertical, 5)
-                .background(theme.color(.violet), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+                .astraChrome(.violet, in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
             Text(value)
                 .font(theme.typography.data(size: 14))
                 .lineLimit(1)

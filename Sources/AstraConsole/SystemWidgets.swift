@@ -18,10 +18,10 @@ struct CPUCoreWidget: View {
                 Spacer()
                 Text("PROC BUS")
                     .font(theme.typography.data(size: 12))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(theme.chromeText(.violet))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(theme.color(.violet), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+                    .astraChrome(.violet, in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
             }
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 72, maximum: 120), spacing: 8)], spacing: 8) {
@@ -214,10 +214,10 @@ struct MicroStat: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label.uppercased())
                 .font(theme.typography.data(size: 12))
-                .foregroundStyle(.black)
+                .foregroundStyle(theme.chromeText(color))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(theme.color(color), in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
+                .astraChrome(color, in: AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4))
             Text(value)
                 .font(theme.typography.display(size: 16))
                 .lineLimit(1)

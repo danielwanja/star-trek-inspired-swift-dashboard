@@ -34,7 +34,7 @@ extension GraphicsContext {
         let width = (rect.width - gap * CGFloat(segments - 1)) / CGFloat(segments)
         guard width > 0 else { return }
         let onColor = theme.color(color)
-        let offColor = theme.palette.text.opacity(0.09)
+        let offColor = theme.inactiveCell(color)
         let clamped = progress.clamped(to: 0...1)
         for index in 0..<segments {
             let x = rect.minX + CGFloat(index) * (width + gap)
@@ -52,11 +52,14 @@ extension GraphicsContext {
         fontSize: CGFloat = 12
     ) {
         let shape = AstraPartialRoundedRectangle(leadingRadius: 12, trailingRadius: 4)
-        fill(shape.path(in: rect), with: .color(theme.color(color)))
+        fill(shape.path(in: rect), with: .color(theme.chromeFill(color)))
+        if theme.chrome == .hairline {
+            stroke(shape.path(in: rect.insetBy(dx: 0.6, dy: 0.6)), with: .color(theme.chromeStroke(color)), lineWidth: theme.chromeStrokeWidth)
+        }
         let resolved = resolve(
             Text(text)
                 .font(theme.typography.data(size: fontSize))
-                .foregroundStyle(Color.black)
+                .foregroundStyle(theme.chromeText(color))
         )
         draw(resolved, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
     }
