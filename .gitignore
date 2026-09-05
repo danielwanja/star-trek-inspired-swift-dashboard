@@ -46,3 +46,9 @@ Podfile.lock
 
 # Per-developer signing (team ID); see AppleTV/Signing.xcconfig
 AppleTV/Signing.local.xcconfig
+
+# Icon generator scratch output
+Packaging/icon/out/
+
+# Files the Claude desktop app drops next to the project
+Claude outputs/

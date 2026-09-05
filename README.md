@@ -25,6 +25,8 @@ From the repository root:
 
 Pass `--release` for an optimized build. This wraps `swift run SpaceshipDashboard`, which works too, and you can also open the folder in Xcode and run the `SpaceshipDashboard` executable target.
 
+For a double-clickable app with the icon in Finder, the Dock and Launchpad, run `Packaging/make-app.sh --open`: it makes a release build and assembles `.build/SpaceshipDashboard.app` (ad-hoc signed). The Apple TV app carries a layered parallax icon and Top Shelf images in its asset catalog. Both come from one vector design; see `Packaging/icon/README.md`.
+
 ## Features
 
 - Hidden-titlebar macOS window with a 1440 x 900 default size and 1180 x 760 minimum layout

@@ -8,6 +8,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // `swift run` launches a bare executable with a generic Dock icon;
+        // Packaging/make-app.sh builds a real bundle, but set the icon here
+        // too so the Dock looks right either way.
+        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+           let icon = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = icon
+        }
         NSApp.activate(ignoringOtherApps: true)
 
         DispatchQueue.main.async {

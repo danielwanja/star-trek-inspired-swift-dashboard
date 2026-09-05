@@ -18,7 +18,8 @@ let package = Package(
     targets: [
         .target(
             name: "AstraConsole",
-            path: "Sources/AstraConsole"
+            path: "Sources/AstraConsole",
+            resources: [.process("Resources")]
         ),
         .executableTarget(
             name: "SpaceshipDashboard",
