@@ -299,12 +299,14 @@ actor SystemTelemetrySampler {
 
 /// Clock and telemetry are separate observable properties so a widget that
 /// only shows the time doesn't re-render when CPU numbers change, and a
-/// gauge that only reads telemetry doesn't re-render on clock ticks.
+/// gauge that only reads telemetry doesn't re-render on clock ticks. The
+/// slower categories (developer, connectivity, weather) are separate too,
+/// each on its own cadence.
 ///
-/// The hub has two sources: the local Darwin sampler (the Mac) or a remote
-/// feed (the Apple TV receiving snapshots from a Mac over Bonjour). In
-/// remote mode the clock still ticks locally so the time widgets never
-/// stall when the link drops; only the telemetry comes from the network.
+/// The hub has two sources: the local samplers (the Mac) or a remote feed
+/// (the Apple TV receiving snapshots from a Mac over Bonjour). In remote
+/// mode the clock still ticks locally so the time widgets never stall when
+/// the link drops; everything else comes from the network.
 @MainActor
 @Observable
 final class LiveDataHub {
@@ -315,18 +317,29 @@ final class LiveDataHub {
 
     private(set) var now = Date()
     private(set) var telemetry = SystemTelemetry.placeholder
+    private(set) var developer = DeveloperTelemetry.placeholder
+    private(set) var connectivity = ConnectivityTelemetry.placeholder
+    private(set) var weather = WeatherTelemetry.placeholder
     /// When the last remote snapshot arrived; `nil` until the first one.
     private(set) var lastRemoteSnapshotAt: Date?
 
     let source: Source
+    /// Settings for the optional categories; only the Mac has one.
+    let sources: ConsoleSources?
 
     #if os(macOS)
     @ObservationIgnored private let sampler = SystemTelemetrySampler()
+    @ObservationIgnored private let developerSampler = DeveloperSampler()
+    @ObservationIgnored private let connectivitySampler = ConnectivitySampler()
     #endif
     @ObservationIgnored private var telemetryTask: Task<Void, Never>?
+    @ObservationIgnored private var developerTask: Task<Void, Never>?
+    @ObservationIgnored private var connectivityTask: Task<Void, Never>?
+    @ObservationIgnored private var weatherTask: Task<Void, Never>?
 
-    init(source: Source = .localSampler) {
+    init(source: Source = .localSampler, sources: ConsoleSources? = nil) {
         self.source = source
+        self.sources = sources
     }
 
     func start() {
@@ -334,21 +347,7 @@ final class LiveDataHub {
         switch source {
         case .localSampler:
             #if os(macOS)
-            telemetryTask = Task { @concurrent [sampler] in
-                while !Task.isCancelled {
-                    let telemetry = await sampler.sample()
-                    let snapshot = LiveDataSnapshot(now: Date(), telemetry: telemetry)
-                    await MainActor.run { [weak self] in
-                        self?.apply(snapshot)
-                    }
-
-                    do {
-                        try await Task.sleep(for: .seconds(1))
-                    } catch {
-                        break
-                    }
-                }
-            }
+            startLocalSampling()
             #else
             // No local sampler on this platform; behave like an idle remote feed.
             startClock()
@@ -361,7 +360,15 @@ final class LiveDataHub {
     func stop() {
         telemetryTask?.cancel()
         telemetryTask = nil
+        developerTask?.cancel()
+        developerTask = nil
+        connectivityTask?.cancel()
+        connectivityTask = nil
+        weatherTask?.cancel()
+        weatherTask = nil
     }
+
+    // MARK: Remote feed
 
     /// Feed a snapshot received from a remote Mac. Called on the main actor
     /// by the sync layer after decoding off-main.
@@ -372,11 +379,112 @@ final class LiveDataHub {
         }
     }
 
+    func applyRemote(_ value: DeveloperTelemetry) {
+        if developer != value { developer = value }
+    }
+
+    func applyRemote(_ value: ConnectivityTelemetry) {
+        if connectivity != value { connectivity = value }
+    }
+
+    func applyRemote(_ value: WeatherTelemetry) {
+        if weather != value { weather = value }
+    }
+
     /// True when a remote snapshot arrived recently enough to be trusted.
     var isRemoteFeedLive: Bool {
         guard let lastRemoteSnapshotAt else { return false }
         return now.timeIntervalSince(lastRemoteSnapshotAt) < 5
     }
+
+    // MARK: Local sampling (Mac)
+
+    #if os(macOS)
+    private func startLocalSampling() {
+        telemetryTask = Task { @concurrent [sampler] in
+            while !Task.isCancelled {
+                let telemetry = await sampler.sample()
+                let snapshot = LiveDataSnapshot(now: Date(), telemetry: telemetry)
+                await MainActor.run { [weak self] in
+                    self?.apply(snapshot)
+                }
+
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    break
+                }
+            }
+        }
+
+        developerTask = Task { @concurrent [developerSampler, weak self] in
+            while !Task.isCancelled {
+                let paths = await MainActor.run { self?.sources?.settings.repositoryPaths ?? [] }
+                let sample = await developerSampler.sample(repositoryPaths: paths)
+                await MainActor.run { [weak self] in
+                    self?.developer = sample
+                }
+                do {
+                    try await Task.sleep(for: .seconds(3))
+                } catch {
+                    break
+                }
+            }
+        }
+
+        connectivityTask = Task { @concurrent [connectivitySampler, weak self] in
+            while !Task.isCancelled {
+                let hosts = await MainActor.run { self?.sources?.settings.probeHosts ?? [] }
+                let sample = await connectivitySampler.sample(probeHosts: hosts)
+                await MainActor.run { [weak self] in
+                    self?.connectivity = sample
+                }
+                do {
+                    try await Task.sleep(for: .seconds(10))
+                } catch {
+                    break
+                }
+            }
+        }
+
+        startWeatherLoop()
+    }
+
+    /// Weather refreshes every 10 minutes, or right away when the location
+    /// list changes (checked every 20 s so the Sources panel feels live).
+    private func startWeatherLoop() {
+        weatherTask?.cancel()
+        weatherTask = Task { @concurrent [weak self] in
+            var lastFetch: Date = .distantPast
+            var lastLocations: [WeatherLocation] = []
+            while !Task.isCancelled {
+                let (locations, metric, previous) = await MainActor.run {
+                    (self?.sources?.settings.weatherLocations ?? [], self?.sources?.settings.usesMetricUnits ?? true, self?.weather ?? .placeholder)
+                }
+                let locationsChanged = locations != lastLocations
+                if locationsChanged || Date().timeIntervalSince(lastFetch) >= 600 {
+                    lastLocations = locations
+                    lastFetch = Date()
+                    let refreshed = await WeatherService.refresh(locations, previous: previous, usesMetricUnits: metric)
+                    await MainActor.run { [weak self] in
+                        self?.weather = refreshed
+                    }
+                } else if previous.usesMetricUnits != metric {
+                    var updated = previous
+                    updated.usesMetricUnits = metric
+                    await MainActor.run { [weak self] in
+                        self?.weather = updated
+                    }
+                }
+                do {
+                    try await Task.sleep(for: .seconds(20))
+                } catch {
+                    break
+                }
+            }
+        }
+    }
+    #endif
 
     private func startClock() {
         telemetryTask = Task { @MainActor [weak self] in

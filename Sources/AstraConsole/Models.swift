@@ -6,6 +6,9 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
     case space
     case cinematic
     case mission
+    case developer
+    case connectivity
+    case weather
 
     var id: String { rawValue }
 
@@ -16,6 +19,9 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         case .space: "Space"
         case .cinematic: "Set Console"
         case .mission: "Mission Ops"
+        case .developer: "Developer"
+        case .connectivity: "Connectivity"
+        case .weather: "Weather"
         }
     }
 
@@ -26,6 +32,9 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         case .space: "ASTRO"
         case .cinematic: "FILM"
         case .mission: "OPS"
+        case .developer: "DEV"
+        case .connectivity: "LINK"
+        case .weather: "WX"
         }
     }
 
@@ -36,6 +45,9 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         case .space: .cyan
         case .cinematic: .rose
         case .mission: .gold
+        case .developer: .mint
+        case .connectivity: .blue
+        case .weather: .teal
         }
     }
 }
@@ -105,6 +117,21 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     case powerDistribution
     case commsTraffic
     case alertLog
+    case systemLoad
+    case topProcessesCPU
+    case topProcessesMemory
+    case gitRepositories
+    case containers
+    case listeningPorts
+    case wifiLink
+    case latencyProbes
+    case networkIdentity
+    case weatherNow
+    case hourlyOutlook
+    case forecast
+    case airQuality
+    case sunCycle
+    case multiCity
 
     var id: String { rawValue }
 
@@ -120,6 +147,12 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
             .cinematic
         case .missionStatus, .crewReadiness, .shieldGrid, .lifeSupport, .powerDistribution, .commsTraffic, .alertLog:
             .mission
+        case .systemLoad, .topProcessesCPU, .topProcessesMemory, .gitRepositories, .containers, .listeningPorts:
+            .developer
+        case .wifiLink, .latencyProbes, .networkIdentity:
+            .connectivity
+        case .weatherNow, .hourlyOutlook, .forecast, .airQuality, .sunCycle, .multiCity:
+            .weather
         }
     }
 
@@ -153,6 +186,21 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .powerDistribution: "Power Grid"
         case .commsTraffic: "Comms"
         case .alertLog: "Alert Log"
+        case .systemLoad: "System Load"
+        case .topProcessesCPU: "Top CPU"
+        case .topProcessesMemory: "Top Memory"
+        case .gitRepositories: "Repositories"
+        case .containers: "Containers"
+        case .listeningPorts: "Listening Ports"
+        case .wifiLink: "Wi-Fi Link"
+        case .latencyProbes: "Latency"
+        case .networkIdentity: "Network Identity"
+        case .weatherNow: "Conditions"
+        case .hourlyOutlook: "Hourly Outlook"
+        case .forecast: "Forecast"
+        case .airQuality: "Air Quality"
+        case .sunCycle: "Sun Cycle"
+        case .multiCity: "Multi-City"
         }
     }
 
@@ -186,6 +234,21 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .powerDistribution: "Energy routing"
         case .commsTraffic: "Channel activity"
         case .alertLog: "Recent operational notices"
+        case .systemLoad: "Load average, uptime and swap"
+        case .topProcessesCPU: "Ten busiest processes"
+        case .topProcessesMemory: "Ten largest resident sets"
+        case .gitRepositories: "Working tree status"
+        case .containers: "Container runtime"
+        case .listeningPorts: "Local services by port"
+        case .wifiLink: "Signal, rate and channel"
+        case .latencyProbes: "TCP round trip to hosts"
+        case .networkIdentity: "Public IP, DNS and VPN"
+        case .weatherNow: "Current weather"
+        case .hourlyOutlook: "Next twelve hours"
+        case .forecast: "Five-day outlook"
+        case .airQuality: "US AQI and particulates"
+        case .sunCycle: "Sunrise, sunset and daylight"
+        case .multiCity: "Conditions across locations"
         }
     }
 
@@ -193,9 +256,10 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .galaxy:
             .hero
-        case .starMap, .planetOrbit, .missionStatus, .powerDistribution, .cpuCoreUsage:
+        case .starMap, .planetOrbit, .missionStatus, .powerDistribution, .cpuCoreUsage,
+             .gitRepositories, .containers, .latencyProbes, .weatherNow, .hourlyOutlook, .forecast, .multiCity:
             .wide
-        case .fakeDataMatrix, .alertLog, .calendar, .tacticalSweep:
+        case .fakeDataMatrix, .alertLog, .calendar, .tacticalSweep, .topProcessesCPU, .topProcessesMemory, .listeningPorts:
             .tall
         default:
             .compact
@@ -232,6 +296,21 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .powerDistribution: "bolt"
         case .commsTraffic: "antenna.radiowaves.left.and.right"
         case .alertLog: "exclamationmark.triangle"
+        case .systemLoad: "gauge.with.dots.needle.67percent"
+        case .topProcessesCPU: "flame"
+        case .topProcessesMemory: "memorychip.fill"
+        case .gitRepositories: "arrow.triangle.branch"
+        case .containers: "shippingbox"
+        case .listeningPorts: "point.3.connected.trianglepath.dotted"
+        case .wifiLink: "wifi"
+        case .latencyProbes: "timer"
+        case .networkIdentity: "globe.americas"
+        case .weatherNow: "cloud.sun"
+        case .hourlyOutlook: "clock.arrow.circlepath"
+        case .forecast: "calendar.badge.clock"
+        case .airQuality: "aqi.medium"
+        case .sunCycle: "sunrise"
+        case .multiCity: "globe"
         }
     }
 
@@ -265,6 +344,21 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .powerDistribution: "25-PWR"
         case .commsTraffic: "26-COM"
         case .alertLog: "27-LOG"
+        case .systemLoad: "28-LOD"
+        case .topProcessesCPU: "29-TCP"
+        case .topProcessesMemory: "30-TMM"
+        case .gitRepositories: "31-GIT"
+        case .containers: "32-CTR"
+        case .listeningPorts: "33-PRT"
+        case .wifiLink: "34-WIF"
+        case .latencyProbes: "35-RTT"
+        case .networkIdentity: "36-NID"
+        case .weatherNow: "37-WXN"
+        case .hourlyOutlook: "38-WXH"
+        case .forecast: "39-WXD"
+        case .airQuality: "40-AQI"
+        case .sunCycle: "41-SUN"
+        case .multiCity: "42-WXM"
         }
     }
 }
@@ -302,6 +396,9 @@ extension DashboardLayout {
         case "Command Deck": "02-CMD"
         case "Astrometrics": "03-AST"
         case "Set Playback": "04-SET"
+        case "Dev Ops": "05-DEV"
+        case "Uplink": "06-LNK"
+        case "Weather Deck": "07-WX"
         default: "99-OPS"
         }
     }
@@ -312,6 +409,9 @@ extension DashboardLayout {
         case "Command Deck": .apricot
         case "Astrometrics": .cyan
         case "Set Playback": .rose
+        case "Dev Ops": .mint
+        case "Uplink": .blue
+        case "Weather Deck": .teal
         default: .violet
         }
     }
@@ -322,6 +422,9 @@ extension DashboardLayout {
         case "Command Deck": .gold
         case "Astrometrics": .violet
         case "Set Playback": .gold
+        case "Dev Ops": .cyan
+        case "Uplink": .violet
+        case "Weather Deck": .gold
         default: .gold
         }
     }
@@ -383,6 +486,46 @@ extension DashboardLayout {
                 DashboardWidget(kind: .crewReadiness),
                 DashboardWidget(kind: .shieldGrid),
                 DashboardWidget(kind: .alertLog, size: .tall),
+                DashboardWidget(kind: .analogClock)
+            ]
+        ),
+        DashboardLayout(
+            name: "Dev Ops",
+            subtitle: "Workstation, repositories and services",
+            widgets: [
+                DashboardWidget(kind: .systemLoad),
+                DashboardWidget(kind: .gitRepositories, size: .wide),
+                DashboardWidget(kind: .containers),
+                DashboardWidget(kind: .topProcessesCPU, size: .tall),
+                DashboardWidget(kind: .topProcessesMemory, size: .tall),
+                DashboardWidget(kind: .listeningPorts, size: .tall),
+                DashboardWidget(kind: .cpuActivity)
+            ]
+        ),
+        DashboardLayout(
+            name: "Uplink",
+            subtitle: "Wireless link, reachability and identity",
+            widgets: [
+                DashboardWidget(kind: .wifiLink),
+                DashboardWidget(kind: .latencyProbes, size: .wide),
+                DashboardWidget(kind: .networkIdentity),
+                DashboardWidget(kind: .networkActivity),
+                DashboardWidget(kind: .worldClock),
+                DashboardWidget(kind: .tacticalSweep, size: .tall),
+                DashboardWidget(kind: .commsTraffic)
+            ]
+        ),
+        DashboardLayout(
+            name: "Weather Deck",
+            subtitle: "Atmospheric conditions and forecast",
+            widgets: [
+                DashboardWidget(kind: .weatherNow, size: .wide),
+                DashboardWidget(kind: .sunCycle),
+                DashboardWidget(kind: .airQuality),
+                DashboardWidget(kind: .hourlyOutlook, size: .wide),
+                DashboardWidget(kind: .forecast, size: .wide),
+                DashboardWidget(kind: .multiCity, size: .wide),
+                DashboardWidget(kind: .worldClock),
                 DashboardWidget(kind: .analogClock)
             ]
         )

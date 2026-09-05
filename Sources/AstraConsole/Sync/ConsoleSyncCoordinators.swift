@@ -54,8 +54,12 @@ final class ConsoleSyncPublisher {
 
         publishState()
         publishSnapshot()
+        publishCategories()
         observeState()
         observeSnapshot()
+        observeDeveloper()
+        observeConnectivity()
+        observeWeather()
     }
 
     func stop() {
@@ -72,6 +76,54 @@ final class ConsoleSyncPublisher {
 
     private func publishSnapshot() {
         server.broadcast(.snapshot(LiveDataSnapshot(now: liveData.now, telemetry: liveData.telemetry)))
+    }
+
+    private func publishCategories() {
+        server.broadcast(.developer(liveData.developer))
+        server.broadcast(.connectivity(liveData.connectivity))
+        server.broadcast(.weather(liveData.weather))
+    }
+
+    // One re-arming observation per slow category, so a weather refresh
+    // never re-sends developer telemetry and vice versa.
+
+    private func observeDeveloper() {
+        guard isRunning else { return }
+        withObservationTracking {
+            _ = liveData.developer
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, isRunning else { return }
+                server.broadcast(.developer(liveData.developer))
+                observeDeveloper()
+            }
+        }
+    }
+
+    private func observeConnectivity() {
+        guard isRunning else { return }
+        withObservationTracking {
+            _ = liveData.connectivity
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, isRunning else { return }
+                server.broadcast(.connectivity(liveData.connectivity))
+                observeConnectivity()
+            }
+        }
+    }
+
+    private func observeWeather() {
+        guard isRunning else { return }
+        withObservationTracking {
+            _ = liveData.weather
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, isRunning else { return }
+                server.broadcast(.weather(liveData.weather))
+                observeWeather()
+            }
+        }
     }
 
     // Re-arming observation: `withObservationTracking` fires once per change
@@ -115,7 +167,7 @@ final class ConsoleSyncPublisher {
             }
         case .theme(let themeID):
             store.selectTheme(themeID)
-        case .hello, .state, .snapshot:
+        case .hello, .state, .snapshot, .developer, .connectivity, .weather:
             break
         }
     }
@@ -192,6 +244,12 @@ final class ConsoleSyncReceiver {
             transition.sync(with: store.selectedDashboardID)
         case .snapshot(let snapshot):
             liveData.applyRemote(snapshot)
+        case .developer(let value):
+            liveData.applyRemote(value)
+        case .connectivity(let value):
+            liveData.applyRemote(value)
+        case .weather(let value):
+            liveData.applyRemote(value)
         case .select, .theme:
             break
         }

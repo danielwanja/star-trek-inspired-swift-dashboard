@@ -161,8 +161,8 @@ final class ConsoleSyncServer: @unchecked Sendable {
     private let deviceName: String
     private var listener: NWListener?
     private var peers: [UUID: SyncPeer] = [:]
-    private var lastState: SyncMessage?
-    private var lastSnapshot: SyncMessage?
+    /// Last message per replayed slot, sent to receivers as they connect.
+    private var lastBySlot: [SyncSlot: SyncMessage] = [:]
 
     var onInbound: (@Sendable (SyncMessage) -> Void)?
     var onPeerCountChange: (@Sendable (Int) -> Void)?
@@ -220,10 +220,8 @@ final class ConsoleSyncServer: @unchecked Sendable {
     /// Fan a message out to every peer. Safe to call from any thread.
     func broadcast(_ message: SyncMessage) {
         queue.async { [self] in
-            switch message.slot {
-            case .state: lastState = message
-            case .snapshot: lastSnapshot = message
-            default: break
+            if message.slot.isReplayed {
+                lastBySlot[message.slot] = message
             }
             for peer in peers.values {
                 peer.send(message)
@@ -240,8 +238,9 @@ final class ConsoleSyncServer: @unchecked Sendable {
             switch state {
             case .ready:
                 peer.send(.hello(SyncHello(version: ConsoleSync.protocolVersion, deviceName: deviceName)))
-                if let lastState { peer.send(lastState) }
-                if let lastSnapshot { peer.send(lastSnapshot) }
+                for slot in SyncSlot.allCases where slot.isReplayed {
+                    if let message = lastBySlot[slot] { peer.send(message) }
+                }
             case .failed, .cancelled:
                 if peers.removeValue(forKey: peer.id) != nil {
                     onPeerCountChange?(peers.count)

@@ -45,6 +45,7 @@ enum AstraColorRole: String, CaseIterable, Codable {
     case mint
     case red
     case blue
+    case teal
 }
 
 struct AstraPalette {
@@ -202,7 +203,8 @@ struct AstraConsoleTheme {
                 .cyan: Color(red: 0.58, green: 0.66, blue: 1.00),
                 .mint: Color(red: 1.00, green: 0.92, blue: 0.42),
                 .red: Color(red: 0.90, green: 0.24, blue: 0.22),
-                .blue: Color(red: 0.44, green: 0.58, blue: 0.98)
+                .blue: Color(red: 0.44, green: 0.58, blue: 0.98),
+                .teal: Color(red: 0.36, green: 0.86, blue: 0.80)
             ]
         ),
         metrics: AstraMetrics(
@@ -239,7 +241,8 @@ struct AstraConsoleTheme {
                 .cyan: Color(red: 0.55, green: 0.78, blue: 1.00),
                 .mint: Color(red: 0.35, green: 0.82, blue: 0.70),
                 .red: Color(red: 0.93, green: 0.26, blue: 0.23),
-                .blue: Color(red: 0.42, green: 0.55, blue: 0.96)
+                .blue: Color(red: 0.42, green: 0.55, blue: 0.96),
+                .teal: Color(red: 0.30, green: 0.80, blue: 0.78)
             ]
         ),
         metrics: AstraMetrics(
@@ -276,7 +279,8 @@ struct AstraConsoleTheme {
                 .cyan: Color(red: 0.14, green: 0.82, blue: 0.95),
                 .mint: Color(red: 0.24, green: 0.94, blue: 0.78),
                 .red: Color(red: 1.00, green: 0.12, blue: 0.10),
-                .blue: Color(red: 0.18, green: 0.46, blue: 0.94)
+                .blue: Color(red: 0.18, green: 0.46, blue: 0.94),
+                .teal: Color(red: 0.16, green: 0.86, blue: 0.86)
             ]
         ),
         metrics: AstraMetrics(
@@ -316,7 +320,8 @@ struct AstraConsoleTheme {
                 .cyan: Color(red: 0.36, green: 0.92, blue: 1.00),
                 .mint: Color(red: 0.62, green: 1.00, blue: 0.90),
                 .red: Color(red: 1.00, green: 0.30, blue: 0.34),
-                .blue: Color(red: 0.34, green: 0.62, blue: 1.00)
+                .blue: Color(red: 0.34, green: 0.62, blue: 1.00),
+                .teal: Color(red: 0.40, green: 0.96, blue: 0.86)
             ]
         ),
         metrics: AstraMetrics(

@@ -11,7 +11,7 @@ import Foundation
 
 enum ConsoleSync {
     static let serviceType = "_spaceship._tcp"
-    static let protocolVersion = 1
+    static let protocolVersion = 2
     /// Upper bound for a single frame; layouts are a few KB, snapshots ~1 KB.
     static let maxFrameLength = 4 * 1024 * 1024
 }
@@ -32,6 +32,9 @@ enum SyncMessage: Codable, Sendable, Equatable {
     case hello(SyncHello)
     case state(ConsoleState)
     case snapshot(LiveDataSnapshot)
+    case developer(DeveloperTelemetry)
+    case connectivity(ConnectivityTelemetry)
+    case weather(WeatherTelemetry)
     /// Receiver → sender: ask the Mac to show a different dashboard.
     case select(UUID)
     /// Receiver → sender: ask the Mac to switch theme.
@@ -44,6 +47,9 @@ enum SyncMessage: Codable, Sendable, Equatable {
         case .hello: .hello
         case .state: .state
         case .snapshot: .snapshot
+        case .developer: .developer
+        case .connectivity: .connectivity
+        case .weather: .weather
         case .select: .select
         case .theme: .theme
         }
@@ -54,8 +60,19 @@ enum SyncSlot: Hashable, Sendable, CaseIterable {
     case hello
     case state
     case snapshot
+    case developer
+    case connectivity
+    case weather
     case select
     case theme
+
+    /// Slots whose last value is replayed to a receiver that just connected.
+    var isReplayed: Bool {
+        switch self {
+        case .state, .snapshot, .developer, .connectivity, .weather: true
+        case .hello, .select, .theme: false
+        }
+    }
 }
 
 enum SyncCodec {

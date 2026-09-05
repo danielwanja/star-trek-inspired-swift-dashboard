@@ -29,10 +29,12 @@ public struct SpaceshipDashboardApp: App {
     @State private var transition: DashboardTransitionController
     @State private var presentation: PresentationController
     @State private var sync: ConsoleSyncPublisher
+    @State private var sources: ConsoleSources
 
     public init() {
         let store = DashboardStore()
-        let liveData = LiveDataHub()
+        let sources = ConsoleSources()
+        let liveData = LiveDataHub(source: .localSampler, sources: sources)
         let transition = DashboardTransitionController(initialID: store.selectedDashboardID)
         let presentation = PresentationController()
         let sync = ConsoleSyncPublisher(
@@ -46,6 +48,7 @@ public struct SpaceshipDashboardApp: App {
         _transition = State(initialValue: transition)
         _presentation = State(initialValue: presentation)
         _sync = State(initialValue: sync)
+        _sources = State(initialValue: sources)
 
         // The presentation window hosts its own root; it shares the same
         // store/hub/transition so both surfaces stay in lockstep.
@@ -71,6 +74,7 @@ public struct SpaceshipDashboardApp: App {
                 .environment(transition)
                 .environment(presentation)
                 .environment(sync)
+                .environment(sources)
                 .frame(minWidth: 1180, minHeight: 760)
                 .onAppear {
                     liveData.start()

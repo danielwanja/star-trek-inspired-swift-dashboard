@@ -31,9 +31,9 @@ Pass `--release` for an optimized build. This wraps `swift run SpaceshipDashboar
 - Four Astra Console themes: Classic, Voyager, Picard Modern, and Horizon HUD (a holographic hairline style with its own backdrop and typography)
 - Live header telemetry for clock, CPU, memory, network, and active theme
 - Dashboard switch boot sequence (progress, boot log, status blocks) and ambient render-server motion (scan sweep, live pulse)
-- Built-in dashboards for Engineering, Command Deck, Astrometrics, and Set Playback
+- Built-in dashboards for Engineering, Command Deck, Astrometrics, Set Playback, Dev Ops, Uplink, and Weather Deck
 - Custom dashboard builder with persisted layout and theme preferences
-- Local-only telemetry sampling through macOS and Darwin APIs
+- Local telemetry sampling through macOS and Darwin APIs, plus developer telemetry (git, containers, ports, top processes), connectivity (Wi-Fi, latency probes, public IP/DNS/VPN) and weather (Open-Meteo) configured under EDIT › SOURCES
 - Cast to an Apple TV: chromeless presentation window for AirPlay displays, and a native tvOS receiver synced over Bonjour
 
 ## Built-In Dashboards
@@ -42,6 +42,9 @@ Pass `--release` for an optimized build. This wraps `swift run SpaceshipDashboar
 - Command Deck: mission summary, host telemetry, galaxy field, shield grid, power routing, alert log, world clock, and countdown
 - Astrometrics: galaxy field, starmap, orbital simulation, tactical sweep, epoch milliseconds, time formats, and world clock
 - Set Playback: invented telemetry, animated data matrix, diagnostics loops, comms, crew readiness, shield grid, alert log, and bridge clock
+- Dev Ops: system load, repositories, containers, top 10 processes by CPU and by memory, listening ports, CPU load
+- Uplink: Wi-Fi link, latency probes, network identity, network rate, world clock, tactical sweep, comms
+- Weather Deck: current conditions, sun cycle, air quality, hourly outlook, five-day forecast, multi-city, clocks
 
 ## Dashboard Builder
 
@@ -55,6 +58,17 @@ Use the `EDIT` control in the app header to open the builder panel. From there y
 - Cycle themes from the header
 
 Dashboard layouts and theme selection are saved in `UserDefaults` under the app's keys. The store also migrates older saved dashboard data into the current default dashboard set.
+
+### Sources
+
+The builder's `SOURCES` tab configures the optional telemetry categories (Mac only; the Apple TV receives the results over the sync link):
+
+- Repositories: folders whose git status (branch, staged/modified/untracked counts, ahead/behind, last commit) the Repositories widget shows. Type a path or `PICK` folders.
+- Latency hosts: `host` or `host:port` entries probed with a TCP connect every 10 seconds (default 1.1.1.1:53, apple.com:443, github.com:443).
+- Weather locations: searched through Open-Meteo geocoding; the first entry is the primary location used by the single-location weather widgets, the rest appear in Multi-City.
+- Units: metric or imperial for temperature, wind, pressure and precipitation.
+
+Settings persist in `UserDefaults` (`spaceship-dashboard.sources.v1`).
 
 ## Casting to an Apple TV
 
@@ -124,9 +138,37 @@ Mission Ops widgets:
 - Comms
 - Alert Log
 
+Developer widgets:
+
+- System Load
+- Top CPU
+- Top Memory
+- Repositories
+- Containers
+- Listening Ports
+
+Connectivity widgets:
+
+- Wi-Fi Link
+- Latency
+- Network Identity
+
+Weather widgets:
+
+- Conditions
+- Hourly Outlook
+- Forecast
+- Air Quality
+- Sun Cycle
+- Multi-City
+
 ## Telemetry Notes
 
-Spaceship Dashboard samples local system data only. It does not call a remote service for telemetry. The system widgets read CPU, per-core CPU, memory, network interface counters, disk capacity, process thread count, and resident memory from public macOS and Darwin APIs.
+The system widgets read CPU, per-core CPU, memory, network interface counters, disk capacity, process thread count, and resident memory from public macOS and Darwin APIs; nothing leaves the machine for them.
+
+Developer telemetry runs short local tools off the main thread with timeouts: `ps` (top processes, every 3 s), `git status --porcelain=v2` and `git log -1` for each configured repository, `docker ps` / `docker stats` when a Docker, OrbStack or Podman CLI is found, and `lsof -iTCP -sTCP:LISTEN` for listening ports (every 15 s). Load average and swap come from `getloadavg` and `sysctl vm.swapusage`.
+
+Connectivity telemetry reads the Wi-Fi link through CoreWLAN (macOS withholds the SSID unless the app has Location permission, so it may show `HIDDEN`), times TCP connects to the configured hosts, reads DNS servers from `/etc/resolv.conf`, detects VPNs via `scutil --nc list` and tunnel interfaces, and asks `api.ipify.org` for the public IP every 5 minutes. Weather and air quality come from the free, keyless Open-Meteo API every 10 minutes. These are the only network calls the app makes.
 
 macOS does not expose exact sensor temperatures through public Swift APIs. The temperature widget estimates a practical thermal envelope from CPU load, memory pressure, network activity, and `ProcessInfo.thermalState`.
 

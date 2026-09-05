@@ -1065,6 +1065,21 @@ struct DashboardWidgetCard: View {
         case .powerDistribution: PowerDistributionWidget()
         case .commsTraffic: CommsTrafficWidget()
         case .alertLog: AlertLogWidget()
+        case .systemLoad: SystemLoadWidget()
+        case .topProcessesCPU: TopProcessesWidget(mode: .cpu)
+        case .topProcessesMemory: TopProcessesWidget(mode: .memory)
+        case .gitRepositories: GitRepositoriesWidget()
+        case .containers: ContainersWidget()
+        case .listeningPorts: ListeningPortsWidget()
+        case .wifiLink: WiFiLinkWidget()
+        case .latencyProbes: LatencyProbesWidget()
+        case .networkIdentity: NetworkIdentityWidget()
+        case .weatherNow: WeatherNowWidget()
+        case .hourlyOutlook: HourlyOutlookWidget()
+        case .forecast: ForecastWidget()
+        case .airQuality: AirQualityWidget()
+        case .sunCycle: SunCycleWidget()
+        case .multiCity: MultiCityWidget()
         }
     }
 }
@@ -1139,9 +1154,24 @@ struct WidgetHeader: View {
     }
 }
 
+enum BuilderMode: String, CaseIterable, Identifiable {
+    case layout
+    case sources
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .layout: "LAYOUT"
+        case .sources: "SOURCES"
+        }
+    }
+}
+
 struct BuilderPanel: View {
     @Environment(DashboardStore.self) private var store
     @Environment(\.astraTheme) private var theme
+    @State private var mode: BuilderMode = .layout
 
     private var filteredKinds: [DashboardWidgetKind] {
         DashboardWidgetKind.allCases.filter { $0.group == store.builderGroup }
@@ -1161,6 +1191,32 @@ struct BuilderPanel: View {
                     .minimumScaleFactor(0.62)
             }
 
+            Picker("Mode", selection: $mode) {
+                ForEach(BuilderMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            switch mode {
+            case .layout:
+                layoutEditor(store: store)
+            case .sources:
+                SourcesPanel()
+            }
+        }
+        .padding(14)
+        .background(theme.palette.panel.opacity(theme.metrics.panelOpacity), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.panelRadius, trailingRadius: theme.metrics.terminalRadius))
+        .overlay(
+            AstraPartialRoundedRectangle(leadingRadius: theme.metrics.panelRadius, trailingRadius: theme.metrics.terminalRadius)
+                .stroke(theme.color(.violet).opacity(0.5), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func layoutEditor(store: DashboardStore) -> some View {
+        @Bindable var store = store
+        VStack(alignment: .leading, spacing: theme.metrics.gap) {
             TextField("Dashboard name", text: Binding(
                 get: { store.selectedDashboard.name },
                 set: { store.updateSelectedName($0) }
@@ -1194,12 +1250,6 @@ struct BuilderPanel: View {
                 }
             }
         }
-        .padding(14)
-        .background(theme.palette.panel.opacity(theme.metrics.panelOpacity), in: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.panelRadius, trailingRadius: theme.metrics.terminalRadius))
-        .overlay(
-            AstraPartialRoundedRectangle(leadingRadius: theme.metrics.panelRadius, trailingRadius: theme.metrics.terminalRadius)
-                .stroke(theme.color(.violet).opacity(0.5), lineWidth: 1)
-        )
     }
 }
 
