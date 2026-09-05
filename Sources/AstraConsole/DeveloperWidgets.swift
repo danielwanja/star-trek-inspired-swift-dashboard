@@ -339,6 +339,29 @@ struct ListeningPortsWidget: View {
     @Environment(LiveDataHub.self) private var liveData
     @Environment(\.astraTheme) private var theme
 
+    static let maxPorts = 14
+
+    private func portCell(_ port: ListeningPort) -> some View {
+        HStack(spacing: 6) {
+            Text(verbatim: "\(port.port)")
+                .font(theme.typography.display(size: 14, weight: .bold))
+                .foregroundStyle(theme.color(port.address == "127.0.0.1" || port.address == "localhost" ? .mint : .rose))
+            Text(port.process.uppercased())
+                .font(theme.typography.data(size: 11))
+                .foregroundStyle(theme.palette.mutedText)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity)
+        .background(theme.palette.screen.opacity(0.55), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous)
+                .stroke(theme.color(.cyan).opacity(0.25), lineWidth: 1)
+        )
+    }
+
     var body: some View {
         let data = liveData.developer
         let ports = data.listeningPorts
@@ -351,25 +374,26 @@ struct ListeningPortsWidget: View {
             if ports.isEmpty {
                 WidgetNote(title: data.hasData ? "Nothing listening" : "Awaiting sample")
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 118, maximum: 200), spacing: 6)], spacing: 6) {
-                    ForEach(ports.prefix(18)) { port in
+                // Two fixed columns of eager rows: a lazy grid does not report
+                // its ideal height inside the dashboard grid and overflows the
+                // card.
+                let shown = Array(ports.prefix(Self.maxPorts))
+                let rows = stride(from: 0, to: shown.count, by: 2).map { Array(shown[$0..<min($0 + 2, shown.count)]) }
+                VStack(spacing: 6) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, pair in
                         HStack(spacing: 6) {
-                            Text("\(port.port)")
-                                .font(theme.typography.display(size: 14, weight: .bold))
-                                .foregroundStyle(theme.color(port.address == "127.0.0.1" || port.address == "localhost" ? .mint : .rose))
-                            Text(port.process.uppercased())
-                                .font(theme.typography.data(size: 11))
-                                .foregroundStyle(theme.palette.mutedText)
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
+                            ForEach(pair) { port in
+                                portCell(port)
+                            }
+                            if pair.count == 1 {
+                                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                            }
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(theme.palette.screen.opacity(0.55), in: RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: theme.metrics.dataRadius, style: .continuous)
-                                .stroke(theme.color(.cyan).opacity(0.25), lineWidth: 1)
-                        )
+                    }
+                    if ports.count > Self.maxPorts {
+                        Text("+\(ports.count - Self.maxPorts) MORE")
+                            .font(theme.typography.data(size: 11))
+                            .foregroundStyle(theme.palette.mutedText)
                     }
                 }
             }

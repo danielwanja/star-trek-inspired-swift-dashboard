@@ -903,10 +903,6 @@ struct DashboardCanvas: View {
 
     static let columns = 4
 
-    private var rows: [[DashboardWidget]] {
-        Self.packWidgets(dashboard.widgets, columns: Self.columns)
-    }
-
     var body: some View {
         AstraCFrame(
             accent: dashboard.accentRole,
@@ -931,50 +927,109 @@ struct DashboardCanvas: View {
     }
 
     private var grid: some View {
-        Grid(horizontalSpacing: theme.metrics.gap, verticalSpacing: theme.metrics.gap) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                GridRow {
-                    ForEach(row) { widget in
-                        DashboardWidgetCard(
-                            widget: widget,
-                            isBuilderVisible: isBuilderVisible,
-                            onResizeWidget: onResizeWidget,
-                            onRemoveWidget: onRemoveWidget
-                        )
-                            .gridCellColumns(min(Self.columns, widget.size.columns))
-                    }
-                    let used = row.reduce(0) { $0 + min(Self.columns, $1.size.columns) }
-                    if used < Self.columns {
-                        Color.clear
-                            .gridCellColumns(Self.columns - used)
-                            .frame(height: 1)
-                    }
-                }
+        // A custom Layout instead of SwiftUI's Grid: Grid sizes flexible
+        // rows from a height proposal and could hand a tall card less than
+        // its content, drawing lists past the card border, while making the
+        // cards rigid broke its column widths. WidgetGridLayout owns both
+        // axes: columns from the container width, rows from content.
+        WidgetGridLayout(columns: Self.columns, spacing: theme.metrics.gap) {
+            ForEach(dashboard.widgets) { widget in
+                DashboardWidgetCard(
+                    widget: widget,
+                    isBuilderVisible: isBuilderVisible,
+                    onResizeWidget: onResizeWidget,
+                    onRemoveWidget: onRemoveWidget
+                )
+                .layoutValue(key: WidgetColumnSpan.self, value: min(Self.columns, widget.size.columns))
             }
         }
     }
+}
 
-    private static func packWidgets(_ widgets: [DashboardWidget], columns: Int) -> [[DashboardWidget]] {
-        var rows: [[DashboardWidget]] = []
-        var row: [DashboardWidget] = []
-        var width = 0
+/// Column span of a card inside `WidgetGridLayout`.
+struct WidgetColumnSpan: LayoutValueKey {
+    static let defaultValue = 1
+}
 
-        for widget in widgets {
-            let span = min(columns, widget.size.columns)
-            if width + span > columns, !row.isEmpty {
-                rows.append(row)
-                row = []
-                width = 0
+/// Fixed-column dashboard grid. Cards fill left to right and wrap when a
+/// span does not fit; every row is as tall as its tallest card, and cards
+/// in a row are stretched to that height. Column width comes from the
+/// container width (1200 pt when unconstrained, e.g. during ideal-size
+/// measurement).
+struct WidgetGridLayout: Layout {
+    var columns: Int
+    var spacing: CGFloat
+
+    struct Placement {
+        var index: Int
+        var column: Int
+        var span: Int
+        var row: Int
+    }
+
+    private func placements(for subviews: Subviews) -> (placements: [Placement], rows: Int) {
+        var result: [Placement] = []
+        var column = 0
+        var row = 0
+        for (index, subview) in subviews.enumerated() {
+            let span = min(columns, max(1, subview[WidgetColumnSpan.self]))
+            if column + span > columns, column > 0 {
+                row += 1
+                column = 0
             }
-            row.append(widget)
-            width += span
+            result.append(Placement(index: index, column: column, span: span, row: row))
+            column += span
         }
+        return (result, subviews.isEmpty ? 0 : row + 1)
+    }
 
-        if !row.isEmpty {
-            rows.append(row)
+    private func columnWidth(for width: CGFloat) -> CGFloat {
+        (width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
+    }
+
+    private func cardWidth(span: Int, columnWidth: CGFloat) -> CGFloat {
+        columnWidth * CGFloat(span) + spacing * CGFloat(span - 1)
+    }
+
+    private func rowHeights(for subviews: Subviews, placements: [Placement], rows: Int, columnWidth: CGFloat) -> [CGFloat] {
+        var heights = [CGFloat](repeating: 0, count: rows)
+        for placement in placements {
+            let width = cardWidth(span: placement.span, columnWidth: columnWidth)
+            let size = subviews[placement.index].sizeThatFits(ProposedViewSize(width: width, height: nil))
+            heights[placement.row] = max(heights[placement.row], size.height)
         }
+        return heights
+    }
 
-        return rows
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let proposed = proposal.width ?? 1200
+        let width = proposed.isFinite && proposed > 0 ? proposed : 1200
+        let (placements, rows) = placements(for: subviews)
+        let heights = rowHeights(for: subviews, placements: placements, rows: rows, columnWidth: columnWidth(for: width))
+        let total = heights.reduce(0, +) + spacing * CGFloat(max(0, rows - 1))
+        return CGSize(width: width, height: total)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let column = columnWidth(for: bounds.width)
+        let (placements, rows) = placements(for: subviews)
+        let heights = rowHeights(for: subviews, placements: placements, rows: rows, columnWidth: column)
+        var rowTops: [CGFloat] = []
+        var y = bounds.minY
+        for height in heights {
+            rowTops.append(y)
+            y += height + spacing
+        }
+        for placement in placements {
+            let x = bounds.minX + (column + spacing) * CGFloat(placement.column)
+            let width = cardWidth(span: placement.span, columnWidth: column)
+            let height = heights[placement.row]
+            subviews[placement.index].place(
+                at: CGPoint(x: x, y: rowTops[placement.row]),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: width, height: height)
+            )
+        }
     }
 }
 
@@ -986,7 +1041,7 @@ struct DashboardWidgetCard: View {
     var onRemoveWidget: (DashboardWidget) -> Void
 
     var body: some View {
-        HStack(spacing: theme.metrics.fineGap) {
+        HStack(alignment: .top, spacing: theme.metrics.fineGap) {
             VStack(spacing: theme.metrics.fineGap) {
                 AstraChromeBlock(role: widget.kind.group.accent, shape: AstraPartialRoundedRectangle(leadingRadius: theme.metrics.terminalRadius * 0.75, trailingRadius: 0))
                 AstraChromeBlock(role: .gold, shape: Rectangle())

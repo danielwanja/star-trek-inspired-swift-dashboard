@@ -329,9 +329,9 @@ struct SunCycleWidget: View {
                 SunArc(sunrise: today.sunrise, sunset: today.sunset, now: now)
                     .frame(height: 70)
                 HStack(spacing: 8) {
-                    MicroStat(label: "SUNRISE", value: Formatters.shortTime(today.sunrise, timeZone: place.timeZone), color: .gold)
-                    MicroStat(label: "SUNSET", value: Formatters.shortTime(today.sunset, timeZone: place.timeZone), color: .apricot)
-                    MicroStat(label: "DAYLIGHT", value: Formatters.duration(daylight), color: .teal)
+                    MicroStat(label: "RISE", value: Formatters.shortTime(today.sunrise, timeZone: place.timeZone), color: .gold)
+                    MicroStat(label: "SET", value: Formatters.shortTime(today.sunset, timeZone: place.timeZone), color: .apricot)
+                    MicroStat(label: "DAY", value: Formatters.duration(daylight), color: .teal)
                 }
                 Text(nextEvent(today: today, tomorrow: place.daily.dropFirst().first, now: now))
                     .font(theme.typography.systemData(size: 11, weight: .semibold))

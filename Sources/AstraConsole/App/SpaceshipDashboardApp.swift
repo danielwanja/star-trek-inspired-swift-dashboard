@@ -115,6 +115,17 @@ public struct SpaceshipDashboardApp: App {
                     )
                 )
             }
+
+            CommandMenu("Gallery") {
+                Button("Export Widget Gallery…") {
+                    WidgetGalleryExporter.exportInteractively(store: store, liveData: liveData, demoData: true)
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+
+                Button("Export Widget Gallery with Live Data…") {
+                    WidgetGalleryExporter.exportInteractively(store: store, liveData: liveData, demoData: false)
+                }
+            }
         }
     }
 }

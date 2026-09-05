@@ -8,11 +8,24 @@ struct EpochMillisWidget: View {
             // Everything that changes per tick is one Canvas draw.
             Canvas { context, size in
                 let frame = now.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1)
-                let millis = context.resolve(
-                    Text("\(Int64(now.timeIntervalSince1970 * 1000))")
-                        .font(theme.typography.data(size: 27))
+                // Verbatim (no grouping separators) and shrunk to the card
+                // width: 13 digits at 27 pt overflow a compact card.
+                let digits = String(Int64(now.timeIntervalSince1970 * 1000))
+                var fontSize: CGFloat = 27
+                var millis = context.resolve(
+                    Text(verbatim: digits)
+                        .font(theme.typography.data(size: fontSize))
                         .foregroundStyle(theme.palette.text)
                 )
+                let measured = millis.measure(in: CGSize(width: CGFloat.greatestFiniteMagnitude, height: 60)).width
+                if measured > size.width, measured > 0 {
+                    fontSize = max(14, (fontSize * size.width / measured).rounded(.down))
+                    millis = context.resolve(
+                        Text(verbatim: digits)
+                            .font(theme.typography.data(size: fontSize))
+                            .foregroundStyle(theme.palette.text)
+                    )
+                }
                 context.draw(millis, at: .zero, anchor: .topLeading)
 
                 let rows = [

@@ -7,6 +7,112 @@ import QuartzCore
 // no Canvas rasterization. The host view is AppKit on macOS and UIKit on
 // tvOS (see PlatformShims); the layer code is identical on both.
 
+// MARK: - Still rendering
+
+/// Set by the gallery exporter: `ImageRenderer` cannot rasterize platform
+/// views, so the overlays below swap their layer-backed host for a static
+/// SwiftUI drawing of the same shape when this is true.
+private struct AstraStaticRenderingKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var astraStaticRendering: Bool {
+        get { self[AstraStaticRenderingKey.self] }
+        set { self[AstraStaticRenderingKey.self] = newValue }
+    }
+}
+
+/// Rotating sensor-sweep wedge; Core Animation when live, a fixed wedge in
+/// stills.
+struct SweepOverlay: View {
+    @Environment(\.astraStaticRendering) private var isStatic
+    var color: Color
+    var period: Double
+    var paused: Bool
+
+    var body: some View {
+        if isStatic {
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let radius = min(size.width, size.height) * 0.44
+                var wedge = Path()
+                wedge.move(to: center)
+                wedge.addArc(center: center, radius: radius, startAngle: .degrees(-150), endAngle: .degrees(-130), clockwise: false)
+                wedge.closeSubpath()
+                context.fill(wedge, with: .color(color))
+            }
+        } else {
+            SweepOverlayRepresentable(color: color, period: period, paused: paused)
+        }
+    }
+}
+
+/// Scrolling dashed polylines; Core Animation when live, static dashes in
+/// stills.
+struct DashFlowOverlay: View {
+    @Environment(\.astraStaticRendering) private var isStatic
+    var lines: [[CGPoint]]
+    var color: Color
+    var lineWidth: CGFloat
+    var dash: [CGFloat]
+    var cycleDuration: Double
+    var paused: Bool
+
+    var body: some View {
+        if isStatic {
+            Canvas { context, size in
+                var path = Path()
+                for line in lines {
+                    guard let first = line.first else { continue }
+                    path.move(to: CGPoint(x: first.x * size.width, y: first.y * size.height))
+                    for point in line.dropFirst() {
+                        path.addLine(to: CGPoint(x: point.x * size.width, y: point.y * size.height))
+                    }
+                }
+                context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round, dash: dash))
+            }
+        } else {
+            DashFlowOverlayRepresentable(lines: lines, color: color, lineWidth: lineWidth, dash: dash, cycleDuration: cycleDuration, paused: paused)
+        }
+    }
+}
+
+/// Ambient scan band; nothing in stills.
+struct ScanSweepOverlay: View {
+    @Environment(\.astraStaticRendering) private var isStatic
+    var color: Color
+    var period: Double
+    var paused: Bool
+
+    var body: some View {
+        if isStatic {
+            Color.clear
+        } else {
+            ScanSweepOverlayRepresentable(color: color, period: period, paused: paused)
+        }
+    }
+}
+
+/// Breathing status dot; a plain dot with halo in stills.
+struct PulseDotOverlay: View {
+    @Environment(\.astraStaticRendering) private var isStatic
+    var color: Color
+    var period: Double
+    var paused: Bool
+
+    var body: some View {
+        if isStatic {
+            ZStack {
+                Circle().fill(color.opacity(0.3))
+                Circle().fill(color).scaleEffect(0.44)
+            }
+        } else {
+            PulseDotOverlayRepresentable(color: color, period: period, paused: paused)
+        }
+    }
+}
+
 // MARK: - Shared pause plumbing
 
 @MainActor
@@ -28,7 +134,7 @@ private func setLayerPaused(_ paused: Bool, on layer: CALayer) {
 // MARK: - Radar sweep
 
 /// A rotating sensor-sweep wedge. `period` is seconds per revolution.
-struct SweepOverlay {
+struct SweepOverlayRepresentable {
     var color: Color
     var period: Double
     var paused: Bool
@@ -40,7 +146,7 @@ struct SweepOverlay {
 }
 
 #if canImport(AppKit)
-extension SweepOverlay: NSViewRepresentable {
+extension SweepOverlayRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> SweepLayerView {
         let view = SweepLayerView()
         apply(to: view)
@@ -52,7 +158,7 @@ extension SweepOverlay: NSViewRepresentable {
     }
 }
 #else
-extension SweepOverlay: UIViewRepresentable {
+extension SweepOverlayRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> SweepLayerView {
         let view = SweepLayerView()
         apply(to: view)
@@ -126,7 +232,7 @@ final class SweepLayerView: LayerHostView {
 /// Polylines with a continuously scrolling dash pattern (routes, power
 /// conduits). Points are normalized to the unit square with a top-left
 /// origin, matching SwiftUI's coordinate space.
-struct DashFlowOverlay {
+struct DashFlowOverlayRepresentable {
     var lines: [[CGPoint]]
     var color: Color
     var lineWidth: CGFloat
@@ -148,7 +254,7 @@ struct DashFlowOverlay {
 }
 
 #if canImport(AppKit)
-extension DashFlowOverlay: NSViewRepresentable {
+extension DashFlowOverlayRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> DashFlowLayerView {
         let view = DashFlowLayerView()
         apply(to: view)
@@ -160,7 +266,7 @@ extension DashFlowOverlay: NSViewRepresentable {
     }
 }
 #else
-extension DashFlowOverlay: UIViewRepresentable {
+extension DashFlowOverlayRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> DashFlowLayerView {
         let view = DashFlowLayerView()
         apply(to: view)
@@ -252,7 +358,7 @@ final class DashFlowLayerView: LayerHostView {
 /// A faint luminous band that sweeps across the view every `period`
 /// seconds (the sweep itself takes ~1.1 s, then the band rests off-screen).
 /// Pure Core Animation: a keyframe animation on the band's position.
-struct ScanSweepOverlay {
+struct ScanSweepOverlayRepresentable {
     var color: Color
     var period: Double
     var paused: Bool
@@ -264,7 +370,7 @@ struct ScanSweepOverlay {
 }
 
 #if canImport(AppKit)
-extension ScanSweepOverlay: NSViewRepresentable {
+extension ScanSweepOverlayRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> ScanSweepLayerView {
         let view = ScanSweepLayerView()
         apply(to: view)
@@ -276,7 +382,7 @@ extension ScanSweepOverlay: NSViewRepresentable {
     }
 }
 #else
-extension ScanSweepOverlay: UIViewRepresentable {
+extension ScanSweepOverlayRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> ScanSweepLayerView {
         let view = ScanSweepLayerView()
         apply(to: view)
@@ -356,7 +462,7 @@ final class ScanSweepLayerView: LayerHostView {
 /// A small status dot breathing between full and faint opacity. Used as
 /// the live indicator in the console header; the render server does the
 /// blinking.
-struct PulseDotOverlay {
+struct PulseDotOverlayRepresentable {
     var color: Color
     var period: Double
     var paused: Bool
@@ -368,7 +474,7 @@ struct PulseDotOverlay {
 }
 
 #if canImport(AppKit)
-extension PulseDotOverlay: NSViewRepresentable {
+extension PulseDotOverlayRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> PulseDotLayerView {
         let view = PulseDotLayerView()
         apply(to: view)
@@ -380,7 +486,7 @@ extension PulseDotOverlay: NSViewRepresentable {
     }
 }
 #else
-extension PulseDotOverlay: UIViewRepresentable {
+extension PulseDotOverlayRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> PulseDotLayerView {
         let view = PulseDotLayerView()
         apply(to: view)

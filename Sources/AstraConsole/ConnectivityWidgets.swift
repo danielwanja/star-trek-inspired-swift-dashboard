@@ -20,7 +20,7 @@ struct WiFiLinkWidget: View {
                         MicroStat(label: "RATE", value: "\(Int(wifi.transmitRate)) Mb", color: .mint)
                     }
                     HStack(spacing: 8) {
-                        MicroStat(label: "CHANNEL", value: "\(wifi.channel)", color: .violet)
+                        MicroStat(label: "CH", value: "\(wifi.channel)", color: .violet)
                         MicroStat(label: "BAND", value: wifi.band, color: .cyan)
                     }
                     MetricLine(label: "SNR", value: "\(wifi.snr) dB", progress: Double(wifi.snr) / 60, color: qualityColor(wifi.quality))

@@ -14,8 +14,8 @@ struct SourceSettings: Codable, Sendable, Equatable {
         repositoryPaths: [],
         probeHosts: ["1.1.1.1:53", "apple.com:443", "github.com:443"],
         weatherLocations: [
-            WeatherLocation(name: "Littleton", region: "Colorado, US", latitude: 39.6133, longitude: -105.0166),
-            WeatherLocation(name: "Geneva", region: "Switzerland", latitude: 46.2044, longitude: 6.1432)
+            WeatherLocation(name: "Cupertino", region: "California, US", latitude: 37.3230, longitude: -122.0322),
+            WeatherLocation(name: "London", region: "United Kingdom", latitude: 51.5072, longitude: -0.1276)
         ],
         usesMetricUnits: Locale.current.measurementSystem == .metric
     )

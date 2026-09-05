@@ -65,7 +65,7 @@ The builder's `SOURCES` tab configures the optional telemetry categories (Mac on
 
 - Repositories: folders whose git status (branch, staged/modified/untracked counts, ahead/behind, last commit) the Repositories widget shows. Type a path or `PICK` folders.
 - Latency hosts: `host` or `host:port` entries probed with a TCP connect every 10 seconds (default 1.1.1.1:53, apple.com:443, github.com:443).
-- Weather locations: searched through Open-Meteo geocoding; the first entry is the primary location used by the single-location weather widgets, the rest appear in Multi-City.
+- Weather locations: searched through Open-Meteo geocoding; the first entry is the primary location used by the single-location weather widgets, the rest appear in Multi-City. Defaults are Cupertino and London until you add your own.
 - Units: metric or imperial for temperature, wind, pressure and precipitation.
 
 Settings persist in `UserDefaults` (`spaceship-dashboard.sources.v1`).
@@ -94,6 +94,8 @@ The Apple TV app renders the same console natively at 60 fps and needs only ~1 K
 The Mac app needs no configuration: it starts advertising as soon as it launches. Both sides run the network layer off the main thread with latest-wins send queues, so a slow or sleeping Apple TV drops snapshots instead of ever backing up into the UI.
 
 ## Widget Catalog
+
+Every widget is described, with a screenshot, in [docs/TELEMETRY.md](docs/TELEMETRY.md). The short list:
 
 System widgets:
 
@@ -161,6 +163,8 @@ Weather widgets:
 - Air Quality
 - Sun Cycle
 - Multi-City
+
+See [docs/TELEMETRY.md](docs/TELEMETRY.md) for a description and screenshot of every widget, grouped by builder tab.
 
 ## Telemetry Notes
 
