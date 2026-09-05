@@ -2,10 +2,17 @@
   "id": "nx-01",
   "name": "Enterprise",
   "registry": "NX-01",
-  "class": "NX Class",
+  "class": "NX class",
   "culture": "Earth Starfleet",
-  "era": "22nd Century",
+  "era": "Enterprise / 22nd century",
   "accent": "rose",
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 10,
   "stats": [
     {
       "label": "Role",
@@ -17,34 +24,63 @@
     },
     {
       "label": "Crew",
-      "value": "83"
+      "value": "83 nominal"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Earth"
     }
   ],
   "callouts": [
     {
-      "label": "Grappler",
-      "value": "Ready",
+      "label": "Bridge",
+      "value": "Command",
       "anchor": [
         0,
-        0,
-        -10
+        10,
+        -29
       ]
     },
     {
-      "label": "Warp 5 Engine",
-      "value": "Nominal",
+      "label": "Port boom",
+      "value": "Engineering",
+      "anchor": [
+        -28,
+        4,
+        24
+      ]
+    },
+    {
+      "label": "Deflector",
+      "value": "Forward array",
       "anchor": [
         0,
-        3,
-        15
+        -2,
+        -83.1
+      ]
+    },
+    {
+      "label": "Starboard nacelle",
+      "value": "Warp propulsion",
+      "anchor": [
+        47,
+        16,
+        8
+      ]
+    },
+    {
+      "label": "Field governor",
+      "value": "Aft crossbar",
+      "anchor": [
+        0,
+        7,
+        46
       ]
     }
   ],
-  "model": "hull.obj",
-  "up": "+Y",
-  "forward": "-Z",
-  "scale": 1.0,
-  "wireframe": "feature",
-  "creaseAngle": 25,
-  "order": 8
+  "notes": "United Earth deep-space explorer and Warp 5 testbed."
 }

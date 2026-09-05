@@ -172,11 +172,15 @@ struct VesselManifest: Codable, Equatable, Sendable, Hashable {
 /// A normalized, render-ready mesh. Vertices are centered on the origin and
 /// scaled so the longest axis spans `-1...1`.
 struct VesselMesh: Equatable, Sendable {
-    var vertices: [SIMD3<Float>]
+    let vertices: [SIMD3<Float>]
     /// Edges stroked by the wireframe style (indices into `vertices`).
     var featureEdges: [SIMD2<UInt32>]
     /// Triangles for the shaded and schematic styles.
-    var triangles: [SIMD3<UInt32>]
+    let triangles: [SIMD3<UInt32>]
+    /// Unit normals in normalized model space. Derived once on construction
+    /// or sync decoding; omitted from the wire payload. Geometry is immutable
+    /// so this cache cannot become stale.
+    let triangleNormals: [SIMD3<Float>]
     /// Bit `i` set when the triangle's edge (v[i], v[(i+1)%3]) is a feature
     /// edge; hidden-line rendering strokes only those.
     var triangleEdgeFlags: [UInt8]
@@ -185,6 +189,30 @@ struct VesselMesh: Equatable, Sendable {
     /// Transform that maps raw model coordinates (as found in the OBJ) into
     /// normalized space; callouts use it to follow the hull.
     var rawToNormalized: VesselTransform
+
+    init(
+        vertices: [SIMD3<Float>],
+        featureEdges: [SIMD2<UInt32>],
+        triangles: [SIMD3<UInt32>],
+        triangleEdgeFlags: [UInt8],
+        boundingRadius: Float,
+        rawToNormalized: VesselTransform
+    ) {
+        self.vertices = vertices
+        self.featureEdges = featureEdges
+        self.triangles = triangles
+        self.triangleEdgeFlags = triangleEdgeFlags
+        self.boundingRadius = boundingRadius
+        self.rawToNormalized = rawToNormalized
+        triangleNormals = triangles.map { triangle in
+            let a = vertices[Int(triangle.x)]
+            let b = vertices[Int(triangle.y)]
+            let c = vertices[Int(triangle.z)]
+            let normal = simd_cross(b - a, c - a)
+            let length = simd_length(normal)
+            return length > 1e-7 ? normal / length : .zero
+        }
+    }
 
     static let empty = VesselMesh(
         vertices: [],
@@ -277,17 +305,23 @@ extension VesselMesh: Codable {
         let t = try container.decode([UInt32].self, forKey: .triangles)
         let f = try container.decode([UInt8].self, forKey: .triangleEdgeFlags)
         let m = try container.decode([Float].self, forKey: .rawToNormalized)
-        boundingRadius = try container.decode(Float.self, forKey: .boundingRadius)
-        vertices = stride(from: 0, to: v.count - 2, by: 3).map { SIMD3<Float>(v[$0], v[$0 + 1], v[$0 + 2]) }
-        featureEdges = stride(from: 0, to: e.count - 1, by: 2).map { SIMD2<UInt32>(e[$0], e[$0 + 1]) }
-        triangles = stride(from: 0, to: t.count - 2, by: 3).map { SIMD3<UInt32>(t[$0], t[$0 + 1], t[$0 + 2]) }
-        triangleEdgeFlags = f.count == triangles.count ? f : Array(repeating: 7, count: triangles.count)
-        rawToNormalized = VesselTransform(flat: m) ?? .identity
+        let boundingRadius = try container.decode(Float.self, forKey: .boundingRadius)
+        let vertices = stride(from: 0, to: v.count - 2, by: 3).map { SIMD3<Float>(v[$0], v[$0 + 1], v[$0 + 2]) }
+        let featureEdges = stride(from: 0, to: e.count - 1, by: 2).map { SIMD2<UInt32>(e[$0], e[$0 + 1]) }
+        let triangles = stride(from: 0, to: t.count - 2, by: 3).map { SIMD3<UInt32>(t[$0], t[$0 + 1], t[$0 + 2]) }
         let vertexCount = UInt32(vertices.count)
         guard featureEdges.allSatisfy({ $0.x < vertexCount && $0.y < vertexCount }),
               triangles.allSatisfy({ $0.x < vertexCount && $0.y < vertexCount && $0.z < vertexCount }) else {
             throw DecodingError.dataCorrupted(DecodingError.Context(codingPath: [], debugDescription: "mesh index out of range"))
         }
+        self.init(
+            vertices: vertices,
+            featureEdges: featureEdges,
+            triangles: triangles,
+            triangleEdgeFlags: f.count == triangles.count ? f : Array(repeating: 7, count: triangles.count),
+            boundingRadius: boundingRadius,
+            rawToNormalized: VesselTransform(flat: m) ?? .identity
+        )
     }
 
     func encode(to encoder: Encoder) throws {

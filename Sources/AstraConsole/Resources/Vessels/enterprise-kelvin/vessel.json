@@ -2,40 +2,85 @@
   "id": "enterprise-kelvin",
   "name": "U.S.S. Enterprise",
   "registry": "NCC-1701",
-  "class": "Kelvin Timeline",
+  "class": "Constitution class (Kelvin)",
   "culture": "Federation",
-  "era": "Alternate 23rd Century",
+  "era": "Kelvin timeline / 23rd century",
   "accent": "blue",
-  "stats": [
-    {
-      "label": "Role",
-      "value": "Heavy Cruiser"
-    },
-    {
-      "label": "Length",
-      "value": "725 m"
-    },
-    {
-      "label": "Crew",
-      "value": "1 100"
-    }
-  ],
-  "callouts": [
-    {
-      "label": "Advanced Warp Core",
-      "value": "Nominal",
-      "anchor": [
-        0,
-        -3,
-        15
-      ]
-    }
-  ],
   "model": "hull.obj",
   "up": "+Y",
   "forward": "-Z",
   "scale": 1.0,
   "wireframe": "feature",
   "creaseAngle": 25,
-  "order": 10
+  "order": 9,
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Explorer"
+    },
+    {
+      "label": "Length",
+      "value": "Scale varies by source"
+    },
+    {
+      "label": "Crew",
+      "value": "Mission dependent"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Bridge",
+      "value": "Command",
+      "anchor": [
+        0,
+        32,
+        -58
+      ]
+    },
+    {
+      "label": "Port collector",
+      "value": "Warp propulsion",
+      "anchor": [
+        -44,
+        35,
+        -6
+      ]
+    },
+    {
+      "label": "Navigational deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -16,
+        -31.400000000000002
+      ]
+    },
+    {
+      "label": "Saucer",
+      "value": "Primary hull",
+      "anchor": [
+        45.75,
+        27.04,
+        -62
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Secondary hull",
+      "anchor": [
+        0,
+        -15,
+        35
+      ]
+    }
+  ],
+  "notes": "Constitution-class explorer from the Kelvin timeline."
 }

@@ -2,10 +2,17 @@
   "id": "enterprise-d",
   "name": "U.S.S. Enterprise",
   "registry": "NCC-1701-D",
-  "class": "Galaxy Class",
+  "class": "Galaxy class",
   "culture": "Federation",
-  "era": "24th Century",
+  "era": "The Next Generation / 24th century",
   "accent": "apricot",
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 1,
   "stats": [
     {
       "label": "Role",
@@ -17,34 +24,63 @@
     },
     {
       "label": "Crew",
-      "value": "1 012"
+      "value": "1,012 nominal"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
     }
   ],
   "callouts": [
     {
-      "label": "Main Bridge",
-      "value": "Active",
+      "label": "Bridge",
+      "value": "Command",
       "anchor": [
         0,
-        4,
-        -10
+        27,
+        -45
       ]
     },
     {
-      "label": "Port Nacelle",
-      "value": "Nominal",
+      "label": "Port collector",
+      "value": "Warp propulsion",
       "anchor": [
+        -60,
+        14,
+        5
+      ]
+    },
+    {
+      "label": "Navigational deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -12,
+        -32.4
+      ]
+    },
+    {
+      "label": "Saucer",
+      "value": "Primary hull",
+      "anchor": [
+        66.0,
+        18.94,
+        -49
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Secondary hull",
+      "anchor": [
+        0,
         -15,
-        2,
-        15
+        35
       ]
     }
   ],
-  "model": "hull.obj",
-  "up": "+Y",
-  "forward": "-Z",
-  "scale": 1.0,
-  "wireframe": "feature",
-  "creaseAngle": 25,
-  "order": 1
+  "notes": "Deep-space explorer with a separable primary hull."
 }

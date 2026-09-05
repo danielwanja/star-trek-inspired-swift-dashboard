@@ -2,14 +2,21 @@
   "id": "voyager",
   "name": "U.S.S. Voyager",
   "registry": "NCC-74656",
-  "class": "Intrepid Class",
+  "class": "Intrepid class",
   "culture": "Federation",
-  "era": "24th Century",
-  "accent": "teal",
+  "era": "Voyager / 24th century",
+  "accent": "mint",
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 4,
   "stats": [
     {
       "label": "Role",
-      "value": "Long Range Explorer"
+      "value": "Explorer"
     },
     {
       "label": "Length",
@@ -17,34 +24,63 @@
     },
     {
       "label": "Crew",
-      "value": "150"
+      "value": "Approx. 150"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
     }
   ],
   "callouts": [
     {
-      "label": "Astrometrics",
-      "value": "Online",
+      "label": "Bridge",
+      "value": "Command",
       "anchor": [
         0,
-        0,
-        -5
+        14,
+        -36
       ]
     },
     {
-      "label": "Var. Geom. Pylons",
-      "value": "Locked",
+      "label": "Port nacelle",
+      "value": "Warp propulsion",
       "anchor": [
-        18,
+        -43,
+        6,
+        47
+      ]
+    },
+    {
+      "label": "Deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -9,
+        -27.1
+      ]
+    },
+    {
+      "label": "Primary hull",
+      "value": "Habitat and sensors",
+      "anchor": [
+        30.799999999999997,
+        9.2,
+        -46
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Integrated hull",
+      "anchor": [
+        0,
         4,
-        5
+        45
       ]
     }
   ],
-  "model": "hull.obj",
-  "up": "+Y",
-  "forward": "-Z",
-  "scale": 1.0,
-  "wireframe": "feature",
-  "creaseAngle": 25,
-  "order": 4
+  "notes": "Long-range explorer with variable-geometry warp nacelles."
 }

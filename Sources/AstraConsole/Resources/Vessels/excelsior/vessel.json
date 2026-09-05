@@ -2,14 +2,21 @@
   "id": "excelsior",
   "name": "U.S.S. Excelsior",
   "registry": "NCC-2000",
-  "class": "Excelsior Class",
+  "class": "Excelsior class",
   "culture": "Federation",
-  "era": "23rd Century",
+  "era": "Original films / 23rd century",
   "accent": "gold",
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 6,
   "stats": [
     {
       "label": "Role",
-      "value": "Heavy Cruiser"
+      "value": "Explorer"
     },
     {
       "label": "Length",
@@ -17,25 +24,63 @@
     },
     {
       "label": "Crew",
-      "value": "750"
+      "value": "Approx. 750"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
     }
   ],
   "callouts": [
     {
-      "label": "Transwarp Drive",
-      "value": "Standby",
+      "label": "Bridge",
+      "value": "Command",
       "anchor": [
         0,
-        -3,
-        10
+        19,
+        -60
+      ]
+    },
+    {
+      "label": "Port collector",
+      "value": "Warp propulsion",
+      "anchor": [
+        -43,
+        20,
+        1
+      ]
+    },
+    {
+      "label": "Navigational deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -10,
+        -30.400000000000002
+      ]
+    },
+    {
+      "label": "Saucer",
+      "value": "Primary hull",
+      "anchor": [
+        33.75,
+        15.280000000000001,
+        -64
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Secondary hull",
+      "anchor": [
+        0,
+        -15,
+        35
       ]
     }
   ],
-  "model": "hull.obj",
-  "up": "+Y",
-  "forward": "-Z",
-  "scale": 1.0,
-  "wireframe": "feature",
-  "creaseAngle": 25,
-  "order": 6
+  "notes": "Excelsior-class explorer in its NCC-2000 service configuration."
 }

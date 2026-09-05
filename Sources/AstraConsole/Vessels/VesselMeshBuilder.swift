@@ -171,14 +171,11 @@ enum VesselMeshBuilder {
             let lo = UInt64(min(a, b)), hi = UInt64(max(a, b))
             return (lo << 32) | hi
         }
-        var normals: [SIMD3<Float>] = []
-        normals.reserveCapacity(triangles.count)
         for (index, triangle) in triangles.enumerated() {
             let a = vertices[Int(triangle.x)], b = vertices[Int(triangle.y)], c = vertices[Int(triangle.z)]
             var normal = simd_cross(b - a, c - a)
             let length = simd_length(normal)
             normal = length > 1e-9 ? normal / length : .zero
-            normals.append(normal)
             let corners = [triangle.x, triangle.y, triangle.z]
             for edge in 0..<3 {
                 let k = key(corners[edge], corners[(edge + 1) % 3])

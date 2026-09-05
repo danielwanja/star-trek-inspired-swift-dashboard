@@ -121,3 +121,7 @@ Load time: reorient → centre on the bounding box → scale the longest axis to
 Per frame: rotate (turntable yaw × pitch, plus any drag offset), perspective-project (camera at 3.4 bounding radii), then either stroke feature edges in four depth buckets with a glow pass, or depth-sort triangles (painter's algorithm) and fill them with a Lambert-shaded tint, stroking each triangle's feature edges right after it so nearer faces hide lines behind them. No GPU geometry, no textures, no external dependencies: the whole pipeline is `Sources/AstraConsole/Vessels/`.
 
 Mac interaction: drag the hull to orbit, pinch to zoom, `PREV`/`NEXT` to step, `AUTO` to resume cycling (28 s per ship), `WIRE`/`SHADED`/`HIDDEN LINE` to switch style (remembered per widget), `SPIN` to pause the turntable, `RESET` to recentre. The Apple TV auto-cycles and spins; its Siri Remote keeps controlling dashboards and themes.
+
+## Bundled asset maintenance
+
+See [VESSEL_ASSETS.md](VESSEL_ASSETS.md) for the detailed Starfleet hulls, measured mesh counts, native-preview export command, and renderer changes. The original geometry generator is in [Packaging/vessels](../Packaging/vessels/README.md).

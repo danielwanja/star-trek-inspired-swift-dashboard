@@ -60,9 +60,9 @@ struct VesselPose: Equatable, Sendable {
 }
 
 /// Immediate-mode software renderer for `VesselMesh` into a `GraphicsContext`.
-/// Everything is recomputed per draw; the meshes are small enough (a few
-/// thousand edges) that this stays well inside a 20 Hz budget, and it keeps
-/// the renderer free of platform view code so it runs identically on the Mac
+/// Topology and model-space normals are retained in the mesh; projection,
+/// visibility sorting and paths depend on the current pose. Keeping
+/// the renderer free of platform view code lets it run identically on the Mac
 /// and the Apple TV, and inside `ImageRenderer` for the documentation stills.
 struct VesselRenderer {
     var mesh: VesselMesh
@@ -193,9 +193,13 @@ struct VesselRenderer {
             let z = view[Int(triangle.x)].z + view[Int(triangle.y)].z + view[Int(triangle.z)].z
             order.append((z, index))
         }
-        order.sort { $0.depth < $1.depth }
+        order.sort { $0.depth == $1.depth ? $0.index < $1.index : $0.depth < $1.depth }
 
         let light = simd_normalize(SIMD3<Float>(0.35, 0.72, 0.6))
+        // dot(R * normal, light) == dot(normal, transpose(R) * light).
+        // Rotate the light once instead of rebuilding/normalizing every
+        // triangle normal every frame (also used by the TV and docs export).
+        let modelLight = projection.rotation.transpose * light
         let shades = shadeColors(opaque: opaque, context: context)
         let edgeColor = accent.opacity(opaque ? 0.95 : 0.85)
         let edgeStyle = StrokeStyle(lineWidth: 1, lineCap: .round, lineJoin: .round)
@@ -203,13 +207,10 @@ struct VesselRenderer {
         for entry in order {
             let triangle = triangles[entry.index]
             let ia = Int(triangle.x), ib = Int(triangle.y), ic = Int(triangle.z)
-            let a = view[ia], b = view[ib], c = view[ic]
-            var normal = simd_cross(b - a, c - a)
-            let length = simd_length(normal)
-            guard length > 1e-7 else { continue }
-            normal /= length
+            let normal = mesh.triangleNormals[entry.index]
+            guard normal != .zero else { continue }
             // Two-sided: open surfaces (fins, panels) must render from both sides.
-            let lambert = abs(simd_dot(normal, light))
+            let lambert = abs(simd_dot(normal, modelLight))
             let shade = shades[min(shades.count - 1, Int(lambert * Float(shades.count)))]
 
             var path = Path()

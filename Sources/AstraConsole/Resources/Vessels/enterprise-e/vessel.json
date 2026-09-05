@@ -2,14 +2,21 @@
   "id": "enterprise-e",
   "name": "U.S.S. Enterprise",
   "registry": "NCC-1701-E",
-  "class": "Sovereign Class",
+  "class": "Sovereign class",
   "culture": "Federation",
-  "era": "24th Century",
+  "era": "TNG films / 24th century",
   "accent": "blue",
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 5,
   "stats": [
     {
       "label": "Role",
-      "value": "Explorer / Battleship"
+      "value": "Explorer"
     },
     {
       "label": "Length",
@@ -17,25 +24,63 @@
     },
     {
       "label": "Crew",
-      "value": "855"
+      "value": "Approx. 700"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
     }
   ],
   "callouts": [
     {
-      "label": "Quantum Torpedoes",
-      "value": "Loaded",
+      "label": "Bridge",
+      "value": "Command",
       "anchor": [
         0,
-        -2,
-        -10
+        15,
+        -35
+      ]
+    },
+    {
+      "label": "Port nacelle",
+      "value": "Warp propulsion",
+      "anchor": [
+        -45,
+        13,
+        8
+      ]
+    },
+    {
+      "label": "Deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -9,
+        -27.1
+      ]
+    },
+    {
+      "label": "Primary hull",
+      "value": "Habitat and sensors",
+      "anchor": [
+        30.099999999999998,
+        10.2,
+        -45
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Integrated hull",
+      "anchor": [
+        0,
+        4,
+        45
       ]
     }
   ],
-  "model": "hull.obj",
-  "up": "+Y",
-  "forward": "-Z",
-  "scale": 1.0,
-  "wireframe": "feature",
-  "creaseAngle": 25,
-  "order": 5
+  "notes": "Sovereign-class explorer with an elongated hull and engineering spine."
 }

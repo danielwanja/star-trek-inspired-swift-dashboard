@@ -2,40 +2,85 @@
   "id": "prometheus",
   "name": "U.S.S. Prometheus",
   "registry": "NCC-71805",
-  "class": "Prometheus Class",
+  "class": "Prometheus class",
   "culture": "Federation",
-  "era": "24th Century",
+  "era": "Voyager / 24th century",
   "accent": "violet",
-  "stats": [
-    {
-      "label": "Role",
-      "value": "Deep Space Tactical"
-    },
-    {
-      "label": "Length",
-      "value": "415 m"
-    },
-    {
-      "label": "Crew",
-      "value": "175"
-    }
-  ],
-  "callouts": [
-    {
-      "label": "Multi-Vector Assault Mode",
-      "value": "Ready",
-      "anchor": [
-        0,
-        1,
-        0
-      ]
-    }
-  ],
   "model": "hull.obj",
   "up": "+Y",
   "forward": "-Z",
   "scale": 1.0,
   "wireframe": "feature",
   "creaseAngle": 25,
-  "order": 9
+  "order": 8,
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Experimental tactical cruiser"
+    },
+    {
+      "label": "Length",
+      "value": "Approx. 415 m"
+    },
+    {
+      "label": "Crew",
+      "value": "Mission dependent"
+    },
+    {
+      "label": "Drive",
+      "value": "Four main warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Bridge",
+      "value": "Command",
+      "anchor": [
+        0,
+        16,
+        -35
+      ]
+    },
+    {
+      "label": "Port nacelle",
+      "value": "Warp propulsion",
+      "anchor": [
+        -36,
+        18,
+        21
+      ]
+    },
+    {
+      "label": "Deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -9,
+        -27.1
+      ]
+    },
+    {
+      "label": "Primary hull",
+      "value": "Habitat and sensors",
+      "anchor": [
+        24.5,
+        11.2,
+        -45
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Integrated hull",
+      "anchor": [
+        0,
+        4,
+        45
+      ]
+    }
+  ],
+  "notes": "Multi-vector tactical prototype shown in assembled configuration."
 }

@@ -2,14 +2,21 @@
   "id": "enterprise",
   "name": "U.S.S. Enterprise",
   "registry": "NCC-1701",
-  "class": "Constitution Class",
+  "class": "Constitution class",
   "culture": "Federation",
-  "era": "23rd Century",
+  "era": "The Original Series / 23rd century",
   "accent": "gold",
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 7,
   "stats": [
     {
       "label": "Role",
-      "value": "Heavy Cruiser"
+      "value": "Heavy cruiser"
     },
     {
       "label": "Length",
@@ -17,25 +24,63 @@
     },
     {
       "label": "Crew",
-      "value": "430"
+      "value": "430 nominal"
+    },
+    {
+      "label": "Drive",
+      "value": "Twin warp nacelles"
+    },
+    {
+      "label": "Affiliation",
+      "value": "United Federation of Planets"
     }
   ],
   "callouts": [
     {
-      "label": "Sensor Dome",
-      "value": "Active",
+      "label": "Bridge",
+      "value": "Command",
       "anchor": [
         0,
-        -5,
-        -15
+        27,
+        -59
+      ]
+    },
+    {
+      "label": "Port collector",
+      "value": "Warp propulsion",
+      "anchor": [
+        -44,
+        29,
+        -3
+      ]
+    },
+    {
+      "label": "Navigational deflector",
+      "value": "Forward array",
+      "anchor": [
+        0,
+        -17,
+        -27.400000000000002
+      ]
+    },
+    {
+      "label": "Saucer",
+      "value": "Primary hull",
+      "anchor": [
+        36.0,
+        22.66,
+        -63
+      ]
+    },
+    {
+      "label": "Engineering",
+      "value": "Secondary hull",
+      "anchor": [
+        0,
+        -15,
+        35
       ]
     }
   ],
-  "model": "hull.obj",
-  "up": "+Y",
-  "forward": "-Z",
-  "scale": 1.0,
-  "wireframe": "feature",
-  "creaseAngle": 25,
-  "order": 7
+  "notes": "Original Constitution-class heavy cruiser."
 }
