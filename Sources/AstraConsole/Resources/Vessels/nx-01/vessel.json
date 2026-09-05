@@ -1,0 +1,50 @@
+{
+  "id": "nx-01",
+  "name": "Enterprise",
+  "registry": "NX-01",
+  "class": "NX Class",
+  "culture": "Earth Starfleet",
+  "era": "22nd Century",
+  "accent": "rose",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Explorer"
+    },
+    {
+      "label": "Length",
+      "value": "225 m"
+    },
+    {
+      "label": "Crew",
+      "value": "83"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Grappler",
+      "value": "Ready",
+      "anchor": [
+        0,
+        0,
+        -10
+      ]
+    },
+    {
+      "label": "Warp 5 Engine",
+      "value": "Nominal",
+      "anchor": [
+        0,
+        3,
+        15
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 8
+}

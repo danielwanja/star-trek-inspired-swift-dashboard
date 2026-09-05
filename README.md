@@ -37,6 +37,7 @@ For a double-clickable app with the icon in Finder, the Dock and Launchpad, run 
 - Custom dashboard builder with persisted layout and theme preferences
 - Local telemetry sampling through macOS and Darwin APIs, plus developer telemetry (git, containers, ports, top processes), connectivity (Wi-Fi, latency probes, public IP/DNS/VPN) and weather (Open-Meteo) configured under EDIT › SOURCES
 - Cast to an Apple TV: chromeless presentation window for AirPlay displays, and a native tvOS receiver synced over Bonjour
+- 3D vessel schematics: rotating wireframe / shaded / hidden-line hulls loaded from your own OBJ models (see [docs/VESSELS.md](docs/VESSELS.md)), synced to the Apple TV
 
 ## Built-In Dashboards
 
@@ -47,6 +48,7 @@ For a double-clickable app with the icon in Finder, the Dock and Launchpad, run 
 - Dev Ops: system load, repositories, containers, top 10 processes by CPU and by memory, listening ports, CPU load
 - Uplink: Wi-Fi link, latency probes, network identity, network rate, world clock, tactical sweep, comms
 - Weather Deck: current conditions, sun cycle, air quality, hourly outlook, five-day forecast, multi-city, clocks
+- Shipyard: vessel schematic, full-height fleet registry, starmap, world clock
 
 ## Dashboard Builder
 
@@ -166,6 +168,11 @@ Weather widgets:
 - Sun Cycle
 - Multi-City
 
+Vessel widgets (`FLEET`; models and manifest format in [docs/VESSELS.md](docs/VESSELS.md)):
+
+- Vessel Schematic
+- Fleet Registry
+
 See [docs/TELEMETRY.md](docs/TELEMETRY.md) for a description and screenshot of every widget, grouped by builder tab.
 
 ## Telemetry Notes
@@ -190,6 +197,13 @@ Sources/AstraConsole/            shared library: everything below builds for mac
   Presentation/
     PresentationRootView.swift   chromeless console surface (AirPlay window and Apple TV)
     PresentationController.swift external-display window management (macOS)
+  Vessels/
+    VesselModels.swift           manifest, mesh and catalog payload types
+    VesselMeshBuilder.swift      OBJ reader, orientation, normalisation, feature edges
+    VesselCatalog.swift          bundled + user-folder loader, folder watcher
+    VesselRenderer.swift         Canvas software renderer (wireframe / shaded / hidden line)
+    VesselWidgets.swift          Vessel Schematic and Fleet Registry widgets
+  Resources/Vessels/             bundled fleet (one folder per vessel: vessel.json + hull.obj)
   Sync/
     SyncMessages.swift           wire protocol (length-prefixed JSON)
     ConsoleSyncTransport.swift   Bonjour listener/browser, framed connections (off-main)
@@ -214,6 +228,7 @@ AppleTV/
   SpaceshipDashboardTV/           main.swift, Info.plist (local-network usage + Bonjour service)
 Tests/SpaceshipDashboardTests/
   PerformanceHarness.swift
+  VesselTests.swift
 research/astra-console-interface/
 ```
 

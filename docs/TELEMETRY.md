@@ -1,10 +1,10 @@
 # Widget Reference
 
-Every widget in Spaceship Dashboard, by builder group. The groups are the tabs of the builder's `LAYOUT` panel (`EDIT` in the header): `SYS`, `GEN`, `ASTRO`, `FILM`, `OPS`, `DEV`, `LINK` and `WX`. Each widget lists its panel code (the tag on its rail), its default size, what it shows and where the data comes from.
+Every widget in Spaceship Dashboard, by builder group. The groups are the tabs of the builder's `LAYOUT` panel (`EDIT` in the header): `SYS`, `GEN`, `ASTRO`, `FILM`, `OPS`, `DEV`, `LINK`, `WX` and `FLEET`. Each widget lists its panel code (the tag on its rail), its default size, what it shows and where the data comes from.
 
 All screenshots use the Horizon HUD theme and were exported from the running app with **Gallery › Export Widget Gallery…** (⇧⌘E) into `docs/images/widgets/`. Host telemetry in the stills is live; the developer, connectivity and weather widgets are rendered from a fictional demo dataset (RFC 5737 documentation addresses, invented repositories and cities) so the documentation never publishes a machine's public IP, open services or location. Animated Core Animation overlays (the tactical sweep wedge, the flowing power routes, the ambient scan band) are drawn as static equivalents in the stills.
 
-Sizes: `Compact` is one column, `Wide` two, `Hero` three, `Tall` one column at double height. Any widget can be resized from the builder.
+Sizes: `Compact` is one column, `Wide` two, `Hero` three, `Tall` one column at double height, `Grand` three columns at double height. Any widget can be resized from the builder.
 
 Data sources fall into three kinds: **live** (sampled on the Mac and synced to the Apple TV), **clock** (computed from the current time on whichever device renders it) and **set** (invented, deterministic values for filming and set decoration). The live categories are described in the README's *Telemetry Notes*; the developer, connectivity and weather categories are configured under `EDIT › SOURCES`.
 
@@ -289,6 +289,20 @@ One row per configured location: symbol, name and region, local time, condition,
 
 ---
 
+## FLEET · Vessels
+
+3D hulls loaded from Wavefront OBJ files (the bundled fleet plus anything in `~/Library/Application Support/SpaceshipDashboard/Vessels/`), rendered by a small software rasterizer into a `Canvas`. The Mac pushes its whole catalog, meshes included, to the Apple TV. Authoring format, limits and manifest keys: [VESSELS.md](VESSELS.md).
+
+### Vessel Schematic · `43-VSL` · Hero
+
+One vessel at a time: name, designation, culture and era chips, the rotating hull with callouts pinned to it, and the manifest's spec lines plus the mesh's vertex/edge count. Cycles through the fleet every 28 s. On the Mac: drag to orbit, pinch to zoom, `PREV`/`NEXT`/`AUTO`, style (`WIRE`, `SHADED`, `HIDDEN LINE`; remembered per widget), `SPIN`, `RESET`. **Set** (the catalog), redrawn at 24 Hz on the Mac and 15 Hz on the Apple TV.
+
+### Fleet Registry · `44-FLT` · Grand
+
+A grid of small wireframes: the whole fleet on one page when it fits, otherwise one culture per page (split further only if a culture has more ships than the grid can hold at 118 × 100 pt per cell); the cells grow to the largest size that still fits the whole page, so a Grand card shows a full culture at once. Each cell is captioned with name and designation; the footer shows the culture chip, page and fleet size. 14 s per page. **Set**, 15 Hz on the Mac and 10 Hz on the Apple TV.
+
+---
+
 ## Default decks
 
 | Deck | Code | Widgets |
@@ -300,6 +314,7 @@ One row per configured location: symbol, name and region, local time, condition,
 | Dev Ops | 05-DEV | System Load, Repositories, Containers, Top CPU, Top Memory, Listening Ports, CPU Activity |
 | Uplink | 06-LNK | Wi-Fi Link, Latency, Network Identity, Network, World Clock, Tactical Sweep, Comms |
 | Weather Deck | 07-WX | Conditions, Sun Cycle, Air Quality, Hourly Outlook, Forecast, Multi-City, World Clock, Bridge Clock |
+| Shipyard | 08-SHP | Vessel Schematic, Fleet Registry (Grand), Starmap, World Clock |
 
 ## Regenerating the screenshots
 

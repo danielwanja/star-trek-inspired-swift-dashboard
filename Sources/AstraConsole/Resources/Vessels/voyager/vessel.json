@@ -1,0 +1,50 @@
+{
+  "id": "voyager",
+  "name": "U.S.S. Voyager",
+  "registry": "NCC-74656",
+  "class": "Intrepid Class",
+  "culture": "Federation",
+  "era": "24th Century",
+  "accent": "teal",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Long Range Explorer"
+    },
+    {
+      "label": "Length",
+      "value": "344 m"
+    },
+    {
+      "label": "Crew",
+      "value": "150"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Astrometrics",
+      "value": "Online",
+      "anchor": [
+        0,
+        0,
+        -5
+      ]
+    },
+    {
+      "label": "Var. Geom. Pylons",
+      "value": "Locked",
+      "anchor": [
+        18,
+        4,
+        5
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 4
+}

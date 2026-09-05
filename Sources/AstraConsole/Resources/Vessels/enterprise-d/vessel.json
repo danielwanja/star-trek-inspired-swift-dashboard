@@ -1,0 +1,50 @@
+{
+  "id": "enterprise-d",
+  "name": "U.S.S. Enterprise",
+  "registry": "NCC-1701-D",
+  "class": "Galaxy Class",
+  "culture": "Federation",
+  "era": "24th Century",
+  "accent": "apricot",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Explorer"
+    },
+    {
+      "label": "Length",
+      "value": "642 m"
+    },
+    {
+      "label": "Crew",
+      "value": "1 012"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Main Bridge",
+      "value": "Active",
+      "anchor": [
+        0,
+        4,
+        -10
+      ]
+    },
+    {
+      "label": "Port Nacelle",
+      "value": "Nominal",
+      "anchor": [
+        -15,
+        2,
+        15
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 1
+}

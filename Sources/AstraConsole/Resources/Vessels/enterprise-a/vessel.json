@@ -1,0 +1,41 @@
+{
+  "id": "enterprise-a",
+  "name": "U.S.S. Enterprise",
+  "registry": "NCC-1701-A",
+  "class": "Constitution Refit",
+  "culture": "Federation",
+  "era": "23rd Century",
+  "accent": "cyan",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Heavy Cruiser"
+    },
+    {
+      "label": "Length",
+      "value": "305 m"
+    },
+    {
+      "label": "Crew",
+      "value": "400"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Deflector Dish",
+      "value": "Nominal",
+      "anchor": [
+        0,
+        -3,
+        -5
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 2
+}

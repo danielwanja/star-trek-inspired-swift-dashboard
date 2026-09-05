@@ -1,0 +1,50 @@
+{
+  "id": "defiant",
+  "name": "U.S.S. Defiant",
+  "registry": "NX-74205",
+  "class": "Defiant Class",
+  "culture": "Federation",
+  "era": "24th Century",
+  "accent": "red",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Escort"
+    },
+    {
+      "label": "Length",
+      "value": "170 m"
+    },
+    {
+      "label": "Crew",
+      "value": "50"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Pulse Cannons",
+      "value": "Primed",
+      "anchor": [
+        12,
+        0,
+        -15
+      ]
+    },
+    {
+      "label": "Ablative Armor",
+      "value": "100%",
+      "anchor": [
+        0,
+        2,
+        0
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 3
+}

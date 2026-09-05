@@ -1,0 +1,41 @@
+{
+  "id": "enterprise",
+  "name": "U.S.S. Enterprise",
+  "registry": "NCC-1701",
+  "class": "Constitution Class",
+  "culture": "Federation",
+  "era": "23rd Century",
+  "accent": "gold",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Heavy Cruiser"
+    },
+    {
+      "label": "Length",
+      "value": "289 m"
+    },
+    {
+      "label": "Crew",
+      "value": "430"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Sensor Dome",
+      "value": "Active",
+      "anchor": [
+        0,
+        -5,
+        -15
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 7
+}

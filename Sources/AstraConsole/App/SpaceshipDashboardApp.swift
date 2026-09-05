@@ -84,6 +84,8 @@ public struct SpaceshipDashboardApp: App {
                 .environment(sources)
                 .frame(minWidth: 1180, minHeight: 760)
                 .onAppear {
+                    VesselCatalog.shared.reload()
+                    VesselCatalog.shared.startWatchingUserDirectory()
                     liveData.start()
                     sync.start()
                 }
@@ -91,6 +93,7 @@ public struct SpaceshipDashboardApp: App {
                     presentation.stop()
                     sync.stop()
                     liveData.stop()
+                    VesselCatalog.shared.stopWatchingUserDirectory()
                     store.flushSave()
                 }
         }
@@ -121,6 +124,19 @@ public struct SpaceshipDashboardApp: App {
                         set: { presentation.setAutoPresent($0) }
                     )
                 )
+            }
+
+            CommandMenu("Vessels") {
+                Button("Reload Vessels") {
+                    VesselCatalog.shared.reload()
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
+
+                Button("Show Vessels Folder in Finder") {
+                    if let folder = VesselCatalog.shared.ensureUserDirectory() {
+                        NSWorkspace.shared.activateFileViewerSelecting([folder])
+                    }
+                }
             }
 
             CommandMenu("Gallery") {

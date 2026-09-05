@@ -1,0 +1,41 @@
+{
+  "id": "excelsior",
+  "name": "U.S.S. Excelsior",
+  "registry": "NCC-2000",
+  "class": "Excelsior Class",
+  "culture": "Federation",
+  "era": "23rd Century",
+  "accent": "gold",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Heavy Cruiser"
+    },
+    {
+      "label": "Length",
+      "value": "467 m"
+    },
+    {
+      "label": "Crew",
+      "value": "750"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Transwarp Drive",
+      "value": "Standby",
+      "anchor": [
+        0,
+        -3,
+        10
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 6
+}

@@ -1,0 +1,41 @@
+{
+  "id": "prometheus",
+  "name": "U.S.S. Prometheus",
+  "registry": "NCC-71805",
+  "class": "Prometheus Class",
+  "culture": "Federation",
+  "era": "24th Century",
+  "accent": "violet",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Deep Space Tactical"
+    },
+    {
+      "label": "Length",
+      "value": "415 m"
+    },
+    {
+      "label": "Crew",
+      "value": "175"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Multi-Vector Assault Mode",
+      "value": "Ready",
+      "anchor": [
+        0,
+        1,
+        0
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 9
+}

@@ -19,7 +19,11 @@ let package = Package(
         .target(
             name: "AstraConsole",
             path: "Sources/AstraConsole",
-            resources: [.process("Resources")]
+            resources: [
+                .process("Resources/AppIcon.png"),
+                // Copied as a folder so vessel.json + OBJ pairs keep their layout.
+                .copy("Resources/Vessels")
+            ]
         ),
         .executableTarget(
             name: "SpaceshipDashboard",

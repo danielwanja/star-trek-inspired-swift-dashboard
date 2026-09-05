@@ -42,6 +42,7 @@ public struct SpaceshipTVApp: App {
                 .onAppear {
                     // A wall console must never fall into the screensaver.
                     UIApplication.shared.isIdleTimerDisabled = true
+                    VesselCatalog.shared.reload()
                     liveData.start()
                     sync.start()
                 }

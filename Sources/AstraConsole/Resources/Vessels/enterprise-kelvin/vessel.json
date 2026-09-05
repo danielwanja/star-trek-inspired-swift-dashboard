@@ -1,0 +1,41 @@
+{
+  "id": "enterprise-kelvin",
+  "name": "U.S.S. Enterprise",
+  "registry": "NCC-1701",
+  "class": "Kelvin Timeline",
+  "culture": "Federation",
+  "era": "Alternate 23rd Century",
+  "accent": "blue",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Heavy Cruiser"
+    },
+    {
+      "label": "Length",
+      "value": "725 m"
+    },
+    {
+      "label": "Crew",
+      "value": "1 100"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Advanced Warp Core",
+      "value": "Nominal",
+      "anchor": [
+        0,
+        -3,
+        15
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 10
+}

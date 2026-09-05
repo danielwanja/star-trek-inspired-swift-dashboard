@@ -55,11 +55,13 @@ final class ConsoleSyncPublisher {
         publishState()
         publishSnapshot()
         publishCategories()
+        publishVessels()
         observeState()
         observeSnapshot()
         observeDeveloper()
         observeConnectivity()
         observeWeather()
+        observeVessels()
     }
 
     func stop() {
@@ -82,6 +84,25 @@ final class ConsoleSyncPublisher {
         server.broadcast(.developer(liveData.developer))
         server.broadcast(.connectivity(liveData.connectivity))
         server.broadcast(.weather(liveData.weather))
+    }
+
+    private func publishVessels() {
+        let catalog = VesselCatalog.shared
+        guard !catalog.vessels.isEmpty else { return }
+        server.broadcast(.vessels(catalog.payload))
+    }
+
+    private func observeVessels() {
+        guard isRunning else { return }
+        withObservationTracking {
+            _ = VesselCatalog.shared.vessels
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, isRunning else { return }
+                publishVessels()
+                observeVessels()
+            }
+        }
     }
 
     // One re-arming observation per slow category, so a weather refresh
@@ -167,7 +188,7 @@ final class ConsoleSyncPublisher {
             }
         case .theme(let themeID):
             store.selectTheme(themeID)
-        case .hello, .state, .snapshot, .developer, .connectivity, .weather:
+        case .hello, .state, .snapshot, .developer, .connectivity, .weather, .vessels:
             break
         }
     }
@@ -250,6 +271,8 @@ final class ConsoleSyncReceiver {
             liveData.applyRemote(value)
         case .weather(let value):
             liveData.applyRemote(value)
+        case .vessels(let payload):
+            VesselCatalog.shared.applyRemote(payload)
         case .select, .theme:
             break
         }

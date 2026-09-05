@@ -9,6 +9,7 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
     case developer
     case connectivity
     case weather
+    case vessels
 
     var id: String { rawValue }
 
@@ -22,6 +23,7 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         case .developer: "Developer"
         case .connectivity: "Connectivity"
         case .weather: "Weather"
+        case .vessels: "Vessels"
         }
     }
 
@@ -35,6 +37,7 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         case .developer: "DEV"
         case .connectivity: "LINK"
         case .weather: "WX"
+        case .vessels: "FLEET"
         }
     }
 
@@ -48,6 +51,7 @@ enum WidgetGroup: String, CaseIterable, Codable, Identifiable {
         case .developer: .mint
         case .connectivity: .blue
         case .weather: .teal
+        case .vessels: .apricot
         }
     }
 }
@@ -57,6 +61,8 @@ enum WidgetSize: String, CaseIterable, Codable, Identifiable {
     case wide
     case tall
     case hero
+    /// Full width at double height: room for a whole fleet at once.
+    case grand
 
     var id: String { rawValue }
 
@@ -66,6 +72,7 @@ enum WidgetSize: String, CaseIterable, Codable, Identifiable {
         case .wide: "Wide"
         case .tall: "Tall"
         case .hero: "Hero"
+        case .grand: "Grand"
         }
     }
 
@@ -75,6 +82,7 @@ enum WidgetSize: String, CaseIterable, Codable, Identifiable {
         case .wide: 2
         case .tall: 1
         case .hero: 3
+        case .grand: 3
         }
     }
 
@@ -84,6 +92,7 @@ enum WidgetSize: String, CaseIterable, Codable, Identifiable {
         case .wide: 150
         case .tall: 320
         case .hero: 320
+        case .grand: 660
         }
     }
 }
@@ -132,6 +141,8 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
     case airQuality
     case sunCycle
     case multiCity
+    case vesselSchematic
+    case fleetRegistry
 
     var id: String { rawValue }
 
@@ -153,6 +164,8 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
             .connectivity
         case .weatherNow, .hourlyOutlook, .forecast, .airQuality, .sunCycle, .multiCity:
             .weather
+        case .vesselSchematic, .fleetRegistry:
+            .vessels
         }
     }
 
@@ -201,6 +214,8 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .airQuality: "Air Quality"
         case .sunCycle: "Sun Cycle"
         case .multiCity: "Multi-City"
+        case .vesselSchematic: "Vessel Schematic"
+        case .fleetRegistry: "Fleet Registry"
         }
     }
 
@@ -249,13 +264,17 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .airQuality: "US AQI and particulates"
         case .sunCycle: "Sunrise, sunset and daylight"
         case .multiCity: "Conditions across locations"
+        case .vesselSchematic: "Rotating hull and specifications"
+        case .fleetRegistry: "Fleet roster by culture"
         }
     }
 
     var defaultSize: WidgetSize {
         switch self {
-        case .galaxy:
+        case .galaxy, .vesselSchematic:
             .hero
+        case .fleetRegistry:
+            .grand
         case .starMap, .planetOrbit, .missionStatus, .powerDistribution, .cpuCoreUsage,
              .gitRepositories, .containers, .latencyProbes, .weatherNow, .hourlyOutlook, .forecast, .multiCity:
             .wide
@@ -311,6 +330,8 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .airQuality: "aqi.medium"
         case .sunCycle: "sunrise"
         case .multiCity: "globe"
+        case .vesselSchematic: "cube.transparent"
+        case .fleetRegistry: "square.grid.3x2"
         }
     }
 
@@ -359,6 +380,8 @@ enum DashboardWidgetKind: String, CaseIterable, Codable, Identifiable {
         case .airQuality: "40-AQI"
         case .sunCycle: "41-SUN"
         case .multiCity: "42-WXM"
+        case .vesselSchematic: "43-VSL"
+        case .fleetRegistry: "44-FLT"
         }
     }
 }
@@ -399,6 +422,7 @@ extension DashboardLayout {
         case "Dev Ops": "05-DEV"
         case "Uplink": "06-LNK"
         case "Weather Deck": "07-WX"
+        case "Shipyard": "08-SHP"
         default: "99-OPS"
         }
     }
@@ -412,6 +436,7 @@ extension DashboardLayout {
         case "Dev Ops": .mint
         case "Uplink": .blue
         case "Weather Deck": .teal
+        case "Shipyard": .apricot
         default: .violet
         }
     }
@@ -425,6 +450,7 @@ extension DashboardLayout {
         case "Dev Ops": .cyan
         case "Uplink": .violet
         case "Weather Deck": .gold
+        case "Shipyard": .cyan
         default: .gold
         }
     }
@@ -527,6 +553,16 @@ extension DashboardLayout {
                 DashboardWidget(kind: .multiCity, size: .wide),
                 DashboardWidget(kind: .worldClock),
                 DashboardWidget(kind: .analogClock)
+            ]
+        ),
+        DashboardLayout(
+            name: "Shipyard",
+            subtitle: "Vessel schematics and fleet roster",
+            widgets: [
+                DashboardWidget(kind: .vesselSchematic, size: .hero),
+                DashboardWidget(kind: .fleetRegistry, size: .grand),
+                DashboardWidget(kind: .starMap, size: .wide),
+                DashboardWidget(kind: .worldClock)
             ]
         )
     ]

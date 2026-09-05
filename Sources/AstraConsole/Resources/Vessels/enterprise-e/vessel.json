@@ -1,0 +1,41 @@
+{
+  "id": "enterprise-e",
+  "name": "U.S.S. Enterprise",
+  "registry": "NCC-1701-E",
+  "class": "Sovereign Class",
+  "culture": "Federation",
+  "era": "24th Century",
+  "accent": "blue",
+  "stats": [
+    {
+      "label": "Role",
+      "value": "Explorer / Battleship"
+    },
+    {
+      "label": "Length",
+      "value": "685 m"
+    },
+    {
+      "label": "Crew",
+      "value": "855"
+    }
+  ],
+  "callouts": [
+    {
+      "label": "Quantum Torpedoes",
+      "value": "Loaded",
+      "anchor": [
+        0,
+        -2,
+        -10
+      ]
+    }
+  ],
+  "model": "hull.obj",
+  "up": "+Y",
+  "forward": "-Z",
+  "scale": 1.0,
+  "wireframe": "feature",
+  "creaseAngle": 25,
+  "order": 5
+}

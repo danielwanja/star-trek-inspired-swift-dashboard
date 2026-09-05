@@ -11,9 +11,10 @@ import Foundation
 
 enum ConsoleSync {
     static let serviceType = "_spaceship._tcp"
-    static let protocolVersion = 2
-    /// Upper bound for a single frame; layouts are a few KB, snapshots ~1 KB.
-    static let maxFrameLength = 4 * 1024 * 1024
+    static let protocolVersion = 3
+    /// Upper bound for a single frame; layouts are a few KB, snapshots ~1 KB,
+    /// a vessel catalog with a dozen detailed hulls a few MB.
+    static let maxFrameLength = 64 * 1024 * 1024
 }
 
 struct SyncHello: Codable, Sendable, Equatable {
@@ -35,6 +36,8 @@ enum SyncMessage: Codable, Sendable, Equatable {
     case developer(DeveloperTelemetry)
     case connectivity(ConnectivityTelemetry)
     case weather(WeatherTelemetry)
+    /// The Mac's vessel catalog (bundled + user folder), meshes included.
+    case vessels(VesselCatalogPayload)
     /// Receiver → sender: ask the Mac to show a different dashboard.
     case select(UUID)
     /// Receiver → sender: ask the Mac to switch theme.
@@ -50,6 +53,7 @@ enum SyncMessage: Codable, Sendable, Equatable {
         case .developer: .developer
         case .connectivity: .connectivity
         case .weather: .weather
+        case .vessels: .vessels
         case .select: .select
         case .theme: .theme
         }
@@ -63,13 +67,14 @@ enum SyncSlot: Hashable, Sendable, CaseIterable {
     case developer
     case connectivity
     case weather
+    case vessels
     case select
     case theme
 
     /// Slots whose last value is replayed to a receiver that just connected.
     var isReplayed: Bool {
         switch self {
-        case .state, .snapshot, .developer, .connectivity, .weather: true
+        case .state, .snapshot, .developer, .connectivity, .weather, .vessels: true
         case .hello, .select, .theme: false
         }
     }

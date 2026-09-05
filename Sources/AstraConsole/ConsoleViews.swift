@@ -1135,6 +1135,8 @@ struct DashboardWidgetCard: View {
         case .airQuality: AirQualityWidget()
         case .sunCycle: SunCycleWidget()
         case .multiCity: MultiCityWidget()
+        case .vesselSchematic: VesselSchematicWidget(widgetID: widget.id, size: widget.size)
+        case .fleetRegistry: FleetRegistryWidget(size: widget.size)
         }
     }
 }
